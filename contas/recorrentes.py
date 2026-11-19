@@ -79,14 +79,14 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
     hoje = hoje if hoje is not None else extrato["data"].max()
     saidas = preparar(extrato)
 
-    linhas = []
-    for (comerciante, categoria), grupo in saidas.groupby(["comerciante", "categoria"]):
+    def avaliar(grupo: pd.DataFrame, comerciante: str, categoria: str) -> dict | None:
+        """Decide se um grupo de pagamentos é recorrente; devolve a linha do resultado ou None."""
         conhecido = bool(grupo["conhecido"].iloc[0])
         minimo = p.min_pagamentos_conhecido if conhecido else p.min_pagamentos
         # Vários pagamentos no mesmo dia (ex.: duas compras na mesma loja) contam como um.
         por_dia = grupo.groupby(grupo["data"].dt.normalize())["montante"].sum().sort_index()
         if len(por_dia) < minimo:
-            continue
+            return None
 
         datas = por_dia.index
         intervalos = np.diff(datas.values).astype("timedelta64[D]").astype(float)
@@ -98,11 +98,11 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
             if (d - ciclos[-1]).days > 4:
                 ciclos.append(d)
         if len(ciclos) < minimo:
-            continue
+            return None
         intervalos_ciclo = np.diff(pd.DatetimeIndex(ciclos).values).astype("timedelta64[D]").astype(float)
         periodo, regularidade = _classificar_intervalo(intervalos_ciclo, p)
         if periodo is None:
-            continue
+            return None
         nome_periodo, dias_periodo, por_ano = periodo
 
         valores = por_dia.values
@@ -116,7 +116,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
             antigos_estaveis = np.std(antigos) / np.median(antigos) <= p.variacao_maxima_valor
             salto_plausivel = valores[-1] <= np.median(antigos) * 2  # subidas de preço reais não duplicam
             if not (antigos_estaveis and salto_plausivel):
-                continue
+                return None
 
         ultimo_valor = float(valores[-1])
         ultima_data = datas[-1]
@@ -149,7 +149,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         if valor_variavel:
             confianca = 0.6 * regularidade + 0.4 * (1 if conhecido else 0)
 
-        linhas.append(
+        return (
             {
                 "comerciante": comerciante,
                 "categoria": categoria,
@@ -168,6 +168,21 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
             }
         )
 
+    linhas = []
+    for (comerciante, categoria), grupo in saidas.groupby(["comerciante", "categoria"]):
+        linha = avaliar(grupo, comerciante, categoria)
+        if linha is not None:
+            linhas.append(linha)
+            continue
+        # O mesmo comerciante pode misturar uma subscrição com compras avulsas
+        # (ex.: Apple = iCloud 0,99 € todos os meses + apps compradas de vez em quando).
+        # Se o grupo todo falhou, testamos cada valor exato à parte.
+        for valor, subgrupo in grupo.groupby(grupo["montante"].round(2)):
+            if len(subgrupo) >= 2 and len(subgrupo) < len(grupo):
+                linha = avaliar(subgrupo, f"{comerciante} ({euro(valor)})", categoria)
+                if linha is not None:
+                    linhas.append(linha)
+
     if not linhas:
         return pd.DataFrame()
     resultado = pd.DataFrame(linhas)
@@ -184,12 +199,21 @@ def possiveis_subscricoes(extrato: pd.DataFrame) -> pd.DataFrame:
     conhecidos = saidas[saidas["conhecido"]]
     if conhecidos.empty:
         return pd.DataFrame()
-    return (
+    tabela = (
         conhecidos.groupby(["comerciante", "categoria"], as_index=False)
-        .agg(valor=("montante", "sum"), n_pagamentos=("montante", "size"), ultimo=("data", "max"))
+        .agg(valor=("montante", "sum"), n_pagamentos=("montante", "size"), ultimo=("data", "max"),
+             minimo=("montante", "min"))
         .sort_values("valor", ascending=False)
         .reset_index(drop=True)
     )
+    # Um pagamento único de 1 € ou menos a um serviço de subscrição costuma ser um
+    # período experimental — que passa a preço normal se não for cancelado.
+    tabela["nota"] = [
+        "Valor muito baixo: pode ser um período experimental que passa a preço normal"
+        if n == 1 and minimo <= 1.0 else ""
+        for n, minimo in zip(tabela["n_pagamentos"], tabela["minimo"])
+    ]
+    return tabela.drop(columns="minimo")
 
 
 def resumo(recorrentes: pd.DataFrame) -> dict:
