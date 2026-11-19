@@ -114,7 +114,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
             # Exceção: subida de preço — os valores antigos são estáveis e os últimos também.
             antigos = valores[:-1]
             antigos_estaveis = np.std(antigos) / np.median(antigos) <= p.variacao_maxima_valor
-            salto_plausivel = valores[-1] <= np.median(antigos) * 2  # subidas de preço reais não duplicam
+            salto_plausivel = valores[-1] <= np.median(antigos) * 1.6  # subidas de preço reais raramente passam de +60%
             if not (antigos_estaveis and salto_plausivel):
                 return None
 
@@ -131,7 +131,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
                 i -= 1
             if i > 0:
                 antigo = float(valores[i - 1])
-                if antigo * (1 + p.aumento_alerta) < ultimo_valor <= antigo * 2:
+                if antigo * (1 + p.aumento_alerta) < ultimo_valor <= antigo * 1.6:
                     subida = (ultimo_valor / antigo - 1) * 100
                     quando = datas[i].strftime("%m/%Y")
                     alertas.append(
@@ -177,6 +177,10 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         # O mesmo comerciante pode misturar uma subscrição com compras avulsas
         # (ex.: Apple = iCloud 0,99 € todos os meses + apps compradas de vez em quando).
         # Se o grupo todo falhou, testamos cada valor exato à parte.
+        # Só para comerciantes conhecidos: em desconhecidos (ex.: transferências para amigos)
+        # valores redondos como 20 € repetem-se por acaso e davam falsos positivos.
+        if not bool(grupo["conhecido"].iloc[0]):
+            continue
         for valor, subgrupo in grupo.groupby(grupo["montante"].round(2)):
             if len(subgrupo) >= 2 and len(subgrupo) < len(grupo):
                 linha = avaliar(subgrupo, f"{comerciante} ({euro(valor)})", categoria)
@@ -186,6 +190,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
     if not linhas:
         return pd.DataFrame()
     resultado = pd.DataFrame(linhas)
+    resultado["proximo_previsto"] = pd.to_datetime(resultado["proximo_previsto"])  # None -> NaT (célula vazia)
     return resultado.sort_values(["ativa", "custo_mensal"], ascending=[False, False]).reset_index(drop=True)
 
 
