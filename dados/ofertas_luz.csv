@@ -1,0 +1,31 @@
+comercializadora,tarifario,potencia_kva,termo_fixo_eur_dia,preco_kwh,fidelizacao,fonte
+Exemplo Energia A,Simples Online,3.45,0.2008,0.142,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia A,Simples Online,4.6,0.2555,0.142,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia A,Simples Online,5.75,0.3102,0.142,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia A,Simples Online,6.9,0.365,0.142,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia A,Simples Online,10.35,0.5292,0.142,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia B,Casa Verde,3.45,0.2195,0.1365,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia B,Casa Verde,4.6,0.2793,0.1365,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia B,Casa Verde,5.75,0.3392,0.1365,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia B,Casa Verde,6.9,0.399,0.1365,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia B,Casa Verde,10.35,0.5786,0.1365,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia C,Tarifa Fixa,3.45,0.1733,0.151,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia C,Tarifa Fixa,4.6,0.2205,0.151,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia C,Tarifa Fixa,5.75,0.2677,0.151,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia C,Tarifa Fixa,6.9,0.315,0.151,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia C,Tarifa Fixa,10.35,0.4567,0.151,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia D,Indexada (média),3.45,0.231,0.129,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia D,Indexada (média),4.6,0.294,0.129,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia D,Indexada (média),5.75,0.357,0.129,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia D,Indexada (média),6.9,0.42,0.129,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia D,Indexada (média),10.35,0.609,0.129,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia E,Clássica,3.45,0.1815,0.169,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia E,Clássica,4.6,0.231,0.169,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia E,Clássica,5.75,0.2805,0.169,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia E,Clássica,6.9,0.33,0.169,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia E,Clássica,10.35,0.4785,0.169,Não,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia F,Jovem,3.45,0.187,0.1455,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia F,Jovem,4.6,0.238,0.1455,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia F,Jovem,5.75,0.289,0.1455,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia F,Jovem,6.9,0.34,0.1455,12 meses,VALORES DE EXEMPLO - substituir por dados reais
+Exemplo Energia F,Jovem,10.35,0.493,0.1455,12 meses,VALORES DE EXEMPLO - substituir por dados reais
