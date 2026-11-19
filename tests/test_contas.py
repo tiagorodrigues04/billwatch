@@ -190,3 +190,28 @@ def test_le_extrato_pdf(ficheiro):
     assert len(df) == 64
     assert df["valor"].sum() == pytest.approx(-681.42)
     assert {"Netflix", "Spotify", "MEO"} <= set(detetar_recorrentes(df)["comerciante"])
+
+
+# --- descrições no estilo do Novo Banco (nomes e refs inventados) --------------
+
+def test_descricoes_estilo_novo_banco():
+    from contas.extrato import corrigir_texto_pdf
+    assert corrigir_texto_pdf("Cobran(cid:231)a Sdd") == "Cobrança Sdd"
+    assert chave_comerciante("Compra Mb Cartºo **** 123* Pingo Doce Coimbra") == "PINGO DOCE"
+    assert chave_comerciante("Compra Mb Cartão **** 123* Mercadona") == "MERCADONA"
+    assert chave_comerciante("Cobrança Sdd Ginasio Xpto Unipessoal,Lda Adc 00011122233") == "GINASIO XPTO"
+    assert chave_comerciante("Trf Imediata Sepa+ De Maria Exemplo") == "MARIA EXEMPLO"
+
+
+def test_debito_direto_estilo_novo_banco_e_detetado():
+    datas = pd.to_datetime(["2026-07-14", "2026-08-14", "2026-09-15", "2026-10-14"])
+    df = pd.DataFrame({
+        "data": list(datas) * 2,
+        "descricao": ["Cobran(cid:231)a Sdd Xpto Fitness Unipessoal,Lda Adc 0001112223"] * 4
+                     + ["Compra Mb Cartºo **** 123* Pingo Doce Coimbra"] * 4,
+        "valor": [-7.98] * 4 + [-12.40, -3.10, -27.85, -8.00],
+    })
+    from contas.extrato import normalizar_extrato
+    r = detetar_recorrentes(normalizar_extrato(df))
+    assert r["comerciante"].tolist() == ["Xpto Fitness"]
+    assert r.iloc[0]["custo_mensal"] == 7.98
