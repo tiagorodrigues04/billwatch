@@ -91,6 +91,31 @@ CATALOGO: list[tuple[str, str, str]] = [
     ("RENDA", "Renda", "Casa"),
     ("CONDOMINIO", "Condomínio", "Casa"),
     ("PROPINA", "Propinas", "Educação"),
+    # Poupança e investimento (não contam como custos)
+    ("POCKET", "Cofre / poupança", "Poupança e investimento"),
+    ("COFRE", "Cofre / poupança", "Poupança e investimento"),
+    ("SAVINGS", "Cofre / poupança", "Poupança e investimento"),
+    ("VAULT", "Cofre / poupança", "Poupança e investimento"),
+    ("POUPANCA", "Poupança", "Poupança e investimento"),
+    ("MEALHEIRO", "Mealheiro", "Poupança e investimento"),
+    ("ARREDONDAMENTO", "Arredondamentos", "Poupança e investimento"),
+    ("ROUND-UP", "Arredondamentos", "Poupança e investimento"),
+    ("BITCOIN", "Cripto (BTC)", "Poupança e investimento"),
+    ("BTC", "Cripto (BTC)", "Poupança e investimento"),
+    ("ETHEREUM", "Cripto (ETH)", "Poupança e investimento"),
+    ("ETH", "Cripto (ETH)", "Poupança e investimento"),
+    ("CRIPTO", "Cripto", "Poupança e investimento"),
+    ("CRYPTO", "Cripto", "Poupança e investimento"),
+    ("BINANCE", "Binance", "Poupança e investimento"),
+    ("COINBASE", "Coinbase", "Poupança e investimento"),
+    ("KRAKEN", "Kraken", "Poupança e investimento"),
+    ("TRADING 212", "Trading 212", "Poupança e investimento"),
+    ("TRADING212", "Trading 212", "Poupança e investimento"),
+    ("XTB", "XTB", "Poupança e investimento"),
+    ("DEGIRO", "DEGIRO", "Poupança e investimento"),
+    ("ETORO", "eToro", "Poupança e investimento"),
+    ("AFORRO", "Certificados de Aforro", "Poupança e investimento"),
+    ("PPR", "PPR", "Poupança e investimento"),
     # Mobilidade e entregas com subscrição
     ("UBER ONE", "Uber One", "Mobilidade e entregas"),
     ("GLOVO PRIME", "Glovo Prime", "Mobilidade e entregas"),
@@ -100,6 +125,8 @@ CATALOGO: list[tuple[str, str, str]] = [
 
 # Categorias cujo valor muda naturalmente de mês para mês (consumos).
 CATEGORIAS_VARIAVEIS = {"Energia"}
+# Recorrentes que não são custos (dinheiro que continua a ser teu).
+CATEGORIAS_POUPANCA = {"Poupança e investimento"}
 
 
 def _limpar(texto: str) -> str:

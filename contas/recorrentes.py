@@ -16,8 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .catalogo import CATEGORIAS_VARIAVEIS, identificar
-from .extrato import chave_comerciante
+from .catalogo import CATEGORIAS_POUPANCA, CATEGORIAS_VARIAVEIS, identificar
+from .extrato import chave_comerciante, e_debito_direto
 
 # nome, intervalo típico em dias, tolerância em dias, pagamentos por ano
 PERIODICIDADES = [
@@ -65,8 +65,15 @@ def preparar(extrato: pd.DataFrame) -> pd.DataFrame:
         ident[0] if ident else chave_comerciante(desc).title()
         for ident, desc in zip(identificados, saidas["descricao"])
     ]
-    saidas["categoria"] = [ident[1] if ident else "Outros" for ident in identificados]
+    saidas["debito_direto"] = saidas["descricao"].map(e_debito_direto)
+    saidas["categoria"] = [
+        ident[1] if ident else ("Débito direto" if dd else "Outros")
+        for ident, dd in zip(identificados, saidas["debito_direto"])
+    ]
     saidas["conhecido"] = identificados.notna()
+    # Um débito direto (SDD) é quase sempre uma conta fixa: precisa de menos provas,
+    # tal como um comerciante do catálogo.
+    saidas["confiavel"] = saidas["conhecido"] | saidas["debito_direto"]
     return saidas
 
 
@@ -81,7 +88,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
 
     def avaliar(grupo: pd.DataFrame, comerciante: str, categoria: str) -> dict | None:
         """Decide se um grupo de pagamentos é recorrente; devolve a linha do resultado ou None."""
-        conhecido = bool(grupo["conhecido"].iloc[0])
+        conhecido = bool(grupo["confiavel"].iloc[0])
         minimo = p.min_pagamentos_conhecido if conhecido else p.min_pagamentos
         # Vários pagamentos no mesmo dia (ex.: duas compras na mesma loja) contam como um.
         por_dia = grupo.groupby(grupo["data"].dt.normalize())["montante"].sum().sort_index()
@@ -153,6 +160,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
             {
                 "comerciante": comerciante,
                 "categoria": categoria,
+                "poupanca": categoria in CATEGORIAS_POUPANCA,
                 "periodicidade": nome_periodo,
                 "valor_tipico": round(valor_tipico, 2),
                 "valor_variavel": valor_variavel,
@@ -179,7 +187,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         # Se o grupo todo falhou, testamos cada valor exato à parte.
         # Só para comerciantes conhecidos: em desconhecidos (ex.: transferências para amigos)
         # valores redondos como 20 € repetem-se por acaso e davam falsos positivos.
-        if not bool(grupo["conhecido"].iloc[0]):
+        if not bool(grupo["confiavel"].iloc[0]):
             continue
         for valor, subgrupo in grupo.groupby(grupo["montante"].round(2)):
             if len(subgrupo) >= 2 and len(subgrupo) < len(grupo):
@@ -201,7 +209,7 @@ def possiveis_subscricoes(extrato: pd.DataFrame) -> pd.DataFrame:
     comerciantes do catálogo (Netflix, MEO, ginásio...), que quase sempre são fixos.
     """
     saidas = preparar(extrato)
-    conhecidos = saidas[saidas["conhecido"]]
+    conhecidos = saidas[saidas["confiavel"] & ~saidas["categoria"].isin(CATEGORIAS_POUPANCA)]
     if conhecidos.empty:
         return pd.DataFrame()
     tabela = (
@@ -222,13 +230,20 @@ def possiveis_subscricoes(extrato: pd.DataFrame) -> pd.DataFrame:
 
 
 def resumo(recorrentes: pd.DataFrame) -> dict:
-    """Números para o topo do painel (só subscrições ativas)."""
+    """Números para o topo do painel (só pagamentos ativos).
+
+    Poupança e investimento (cofres, cripto, PPR...) são recorrentes mas não são custos:
+    contam à parte, em "poupanca_mensal".
+    """
     if recorrentes.empty:
-        return {"n_ativas": 0, "mensal": 0.0, "anual": 0.0, "n_alertas": 0}
+        return {"n_ativas": 0, "mensal": 0.0, "anual": 0.0, "n_alertas": 0, "poupanca_mensal": 0.0}
     ativas = recorrentes[recorrentes["ativa"]]
+    poupanca = ativas["poupanca"] if "poupanca" in ativas else pd.Series(False, index=ativas.index)
+    custos = ativas[~poupanca]
     return {
-        "n_ativas": int(len(ativas)),
-        "mensal": round(float(ativas["custo_mensal"].sum()), 2),
-        "anual": round(float(ativas["custo_anual"].sum()), 2),
+        "n_ativas": int(len(custos)),
+        "mensal": round(float(custos["custo_mensal"].sum()), 2),
+        "anual": round(float(custos["custo_anual"].sum()), 2),
         "n_alertas": int(recorrentes["alertas"].map(len).sum()),
+        "poupanca_mensal": round(float(ativas[poupanca]["custo_mensal"].sum()), 2),
     }

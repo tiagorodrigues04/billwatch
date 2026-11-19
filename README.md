@@ -16,40 +16,80 @@ Inspirado no Rocket Money (EUA), adaptado a bancos e serviços portugueses.
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 streamlit run app.py               # abre em http://localhost:8501
-pytest                             # 19 testes
+pytest                             # ~100 testes
 ```
 
 A app arranca com um **extrato de exemplo** (12 meses fictícios de um estudante), por
-isso dá para experimentar logo sem dados reais.
+isso dá para experimentar logo sem dados reais. Os testes correm sozinhos no GitHub a
+cada alteração (separador *Actions*).
+
+## Formatos de extrato suportados
+
+| Tipo | O que a app percebe |
+|---|---|
+| **CSV** | separador `;` `,` tab ou `\|` · codificação UTF-8 ou Windows · linhas de título antes da tabela · vários blocos no mesmo ficheiro (ex.: Revolut: resumo + conta + cripto) |
+| **Excel** | `.xlsx`, `.xls` antigo e `.xls` que na verdade é HTML · datas reais ou em número série · títulos antes da tabela |
+| **PDF** | com grelha ou só texto · colunas Débito/Crédito, "Dinheiro retirado/recebido", "Money out/in" ou um só "Montante" · do mais antigo para o mais recente ou ao contrário · várias secções e páginas · descrições em 2 linhas · data só na 1.ª linha de cada dia · PDFs com letras estragadas (`(cid:231)`) |
+| **Valores** | `1.234,56` `1,234.56` `-9,99` `9,99-` `(9,99)` `+9,99` `9,99 D/C` `€9.99` `9,99 €` `1 234,56` · ou valor positivo com coluna D/C |
+| **Datas** | `05-10-2026` `05/10/26` `05.10.2026` `2026-10-05` `5 out 2026` `5 de out. de 2026` `Oct 5, 2026` · e sem ano (`05.10`), com o ano tirado do período do extrato |
+| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam |
+
+**Se um formato não for reconhecido**, a app não fica presa: mostra a tabela e pede ao
+utilizador que diga que coluna é a data, a descrição e o valor (já com um palpite
+feito pelo conteúdo). Há também a opção *Inverter sinais*, e um **diagnóstico anónimo**
+(letras → `x`, números → `9`) que se pode partilhar para corrigir o leitor sem expor dados.
+
+Está tudo testado em `tests/formatos/`: 17 extratos fictícios que imitam formas reais de
+exportar, todos gerados a partir dos mesmos movimentos — e o teste exige que todos deem
+**exatamente** os mesmos movimentos, comerciantes e resultado final.
+Para acrescentar um formato novo: imitá-lo em `tests/gerar_formatos.py` e correr
+`python tests/gerar_formatos.py`.
 
 ## Estrutura
 
 ```
-app.py                 Interface (Streamlit): abas Subscrições, Luz, Como funciona
+app.py                  Interface (Streamlit): abas Subscrições, Luz, Como funciona
 contas/
-  extrato.py           Lê CSVs de qualquer banco e normaliza para (data, descricao, valor)
-  catalogo.py          Comerciantes conhecidos em PT → nome e categoria
-  recorrentes.py       O algoritmo de deteção de pagamentos recorrentes + alertas
-  energia.py           Lê a fatura da luz (PDF) e compara ofertas
-  exemplo.py           Gera o extrato fictício usado na demo e nos testes
+  texto.py              Ler números e datas escritos de qualquer forma; anonimizar
+  extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
+  leitor_pdf.py         Extratos em PDF (tabelas desenhadas ou palavras com posição)
+  catalogo.py           Comerciantes conhecidos em PT → nome e categoria
+  recorrentes.py        O algoritmo de deteção de pagamentos recorrentes + alertas
+  energia.py            Lê a fatura da luz (PDF) e compara ofertas
+  exemplo.py            Gera o extrato fictício usado na demo e nos testes
 dados/
-  ofertas_luz.csv      Tabela de ofertas — VALORES DE EXEMPLO, substituir por reais
-  fatura_exemplo.pdf   Fatura fictícia para testar a leitura de PDF
-tests/test_contas.py   Testes automáticos
+  ofertas_luz.csv       Tabela de ofertas — VALORES DE EXEMPLO, substituir por reais
+  fatura_exemplo.pdf    Fatura fictícia para testar a leitura de PDF
+tests/
+  test_contas.py        Testes do algoritmo e casos concretos
+  test_formatos.py      Os 17 formatos + ficheiros estragados, PDFs protegidos/digitalizados
+  gerar_formatos.py     Gera a coleção de formatos fictícios
+  formatos/             Os ficheiros gerados + resultados esperados
+.github/workflows/      Corre os testes no GitHub a cada alteração
 ```
 
 ## Como funciona (o que tens de saber explicar numa entrevista)
 
-### 1. Ler o extrato (`extrato.py`)
-Cada banco exporta de forma diferente: `;` ou `,`, `1.234,56` ou `1234.56`, uma
-coluna "Montante" com sinal ou duas colunas "Débito"/"Crédito", linhas de cabeçalho
-com o IBAN antes da tabela. O módulo:
-- procura a linha onde começa a tabela (a primeira que tem "data" e "valor/débito");
-- experimenta separadores e codificações (`utf-8`, `latin-1`);
-- encontra as colunas pelo nome (cuidado: "Data Valor" é uma data, não um valor!);
-- converte números no formato português com `converter_numero()`.
+### 1. Ler o extrato (`extrato.py`, `leitor_pdf.py`, `texto.py`)
+Cada banco exporta de forma diferente (ver a tabela acima). A leitura tem 3 passos:
+1. **Ficheiro → linhas de células.** O separador do CSV escolhe-se pela consistência
+   (o que dá o mesmo nº de colunas em mais linhas).
+2. **Linhas → tabela.** Procuram-se *todas* as linhas que parecem cabeçalhos de
+   movimentos (têm uma célula de data e uma de valor), lê-se o bloco depois de cada uma
+   e juntam-se os blocos com as mesmas colunas. É assim que o resumo da Revolut fica de
+   fora e os cabeçalhos repetidos em cada página de um PDF não estragam nada.
+3. **Tabela → que coluna é qual**, pelo nome (cuidado: "Data Valor" é uma data!) e,
+   se o nome não ajudar, pelo conteúdo (a coluna com mais datas válidas é a data).
+
+**PDFs** não têm colunas — só palavras com coordenadas. O leitor agrupa as palavras em
+linhas, encontra o cabeçalho e guarda a **posição horizontal** de cada coluna; cada
+valor de um movimento pertence à coluna de cabeçalho mais próxima (débito, crédito ou
+saldo). Depois **verifica pelo saldo**: saldo atual − saldo anterior = movimento com
+sinal, testando as duas ordens possíveis (cronológica ou inversa). Se as colunas e o
+saldo discordarem, o saldo ganha. Num PDF com uma só coluna de valores, se o banco
+escreve "-" nas saídas e nunca "+", um valor sem sinal é uma entrada.
 
 ### 2. Dar nome ao comerciante (`catalogo.py` + `chave_comerciante()`)
 A mesma subscrição aparece com descrições diferentes todos os meses:
@@ -58,7 +98,12 @@ A mesma subscrição aparece com descrições diferentes todos os meses:
   `MEO` ou `NOS` só contam como palavra inteira, para "HOMEOPATIA" não virar MEO).
 - Se não estiver no catálogo, cria uma **chave**: tira acentos, pontuação, tudo o que
   tenha números (referências, datas, nº de cartão) e palavras de ruído bancário
-  (COMPRA, DD, TRF, MB WAY...), e fica com as 2 primeiras palavras.
+  (COMPRA, DD, TRF, MB WAY, Cobrança SDD, Trf Imediata Sepa+...), e fica com as 2
+  primeiras palavras.
+- **Débitos diretos** (SDD) são quase sempre contas fixas, por isso precisam de menos
+  provas, tal como os comerciantes do catálogo.
+- **Poupança e investimento** (cofres, cripto, PPR, corretoras) são recorrentes mas não
+  são custos: aparecem à parte e não entram no "Pagas por mês".
 
 ### 3. Detetar recorrência (`recorrentes.py`)
 Para cada comerciante:
