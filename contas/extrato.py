@@ -131,7 +131,7 @@ def normalizar_extrato(df: pd.DataFrame) -> pd.DataFrame:
     resultado = pd.DataFrame(
         {
             "data": pd.to_datetime(df[col_data], dayfirst=True, errors="coerce", format="mixed"),
-            "descricao": df[col_desc].astype(str).str.strip(),
+            "descricao": df[col_desc].astype(str).map(corrigir_texto_pdf).str.strip(),
             "valor": valores.astype(float),
         }
     )
@@ -223,9 +223,23 @@ def juntar_extratos(extratos: list[pd.DataFrame]) -> pd.DataFrame:
 # Prefixos que os bancos acrescentam à descrição e que não identificam o comerciante.
 _RUIDO = re.compile(
     r"\b(COMPRA|COMPRAS|PAG(AMENTO)?|PAGTO|DD|DEB(ITO)?|DIRECTO|DIRETO|TRF|TRANSF(ERENCIA)?|"
-    r"MB ?WAY|MBWAY|CARTAO|CARD|CONTACTLESS|ONLINE|WWW|COM|PT|LDA|SA|S A|REF|N|NO|ENT|"
+    r"MB ?WAY|MBWAY|MB|CARTAO|CARTOO|CART|CARD|CONTACTLESS|ONLINE|WWW|COM|PT|LDA|SA|S A|REF|N|NO|ENT|"
+    r"COBRANCA|COBRAN|SDD|ADC|CID|IMEDIATA|SEPA|DE|DA|DO|PARA|UNIPESSOAL|"
     r"PORTUGAL|LISBOA|PORTO|COIMBRA|EUR|VISA|MASTERCARD|APPLE PAY|GOOGLE PAY)\b"
 )
+
+
+def corrigir_texto_pdf(texto: str) -> str:
+    """Corrige artefactos comuns da extração de PDFs.
+
+    Alguns PDFs (ex.: Novo Banco) têm letras que o pdfplumber não sabe mapear e que
+    aparecem como "(cid:231)". O número é o código da letra: 231 = "ç".
+    """
+    def trocar(m: re.Match) -> str:
+        codigo = int(m.group(1))
+        return chr(codigo) if 32 <= codigo < 256 else ""
+    texto = re.sub(r"\(cid:(\d+)\)", trocar, str(texto))
+    return texto.replace("Cartºo", "Cartão").replace("CARTºO", "CARTÃO")
 
 
 def chave_comerciante(descricao: str) -> str:
@@ -234,7 +248,7 @@ def chave_comerciante(descricao: str) -> str:
     "COMPRA 4521 NETFLIX.COM 866-579 12/03" -> "NETFLIX"
     "DD EDP COMERCIAL REF 123456789"       -> "EDP COMERCIAL"
     """
-    texto = _sem_acentos(descricao).upper()
+    texto = _sem_acentos(corrigir_texto_pdf(descricao)).upper()
     texto = re.sub(r"[^A-Z0-9 ]", " ", texto)       # pontuação fora
     texto = re.sub(r"\b\w*\d\w*\b", " ", texto)       # tokens com números (refs, datas, cartões)
     texto = _RUIDO.sub(" ", texto)
