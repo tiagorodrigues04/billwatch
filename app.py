@@ -11,7 +11,7 @@ import streamlit as st
 
 from contas.energia import POTENCIAS_PADRAO, carregar_ofertas, comparar, custo_periodo, ler_fatura_pdf
 from contas.exemplo import extrato_csv_banco, gerar_extrato
-from contas.extrato import carregar_extrato, juntar_extratos
+from contas.extrato import carregar_extrato, diagnostico_pdf, juntar_extratos
 from contas.recorrentes import Parametros, detetar_recorrentes, euro, possiveis_subscricoes, preparar, resumo
 
 AZUL = "#2a78d6"
@@ -35,6 +35,33 @@ def _csv_exemplo() -> bytes:
 @st.cache_data(show_spinner=False)
 def _ler_extrato(conteudo: bytes, nome: str = "") -> pd.DataFrame:
     return carregar_extrato(conteudo, nome)
+
+
+@st.cache_data(show_spinner=False)
+def _diagnostico_pdf(conteudo: bytes) -> dict:
+    return diagnostico_pdf(conteudo)
+
+
+def mostrar_diagnostico(extrato: pd.DataFrame, ficheiros) -> None:
+    """Ajuda a perceber se o ficheiro foi bem lido, sem mostrar dados a ninguém."""
+    with st.expander("🛠️ Os números parecem errados? Diagnóstico da leitura"):
+        entradas, saidas = extrato[extrato["valor"] > 0], extrato[extrato["valor"] < 0]
+        c1, c2 = st.columns(2)
+        c1.metric("Entradas", f"{len(entradas)} · {euro(float(entradas['valor'].sum()))}")
+        c2.metric("Saídas", f"{len(saidas)} · {euro(float(-saidas['valor'].sum()))}")
+        st.caption("Compara com o teu extrato: datas, valores e sinais (+/-) estão certos?")
+        st.dataframe(extrato[["data", "valor", "descricao"]].head(20), hide_index=True, width="stretch",
+                     column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                    "descricao": "Descrição",
+                                    "valor": st.column_config.NumberColumn("Valor", format="%.2f €")})
+        pdfs = [f for f in (ficheiros or []) if f.name.lower().endswith(".pdf")]
+        if pdfs:
+            d = _diagnostico_pdf(pdfs[0].getvalue())
+            st.markdown("**Estrutura anónima do PDF** — letras viram `x` e números viram `9`, "
+                        "por isso podes partilhá-la para corrigir o leitor sem revelar os teus dados.")
+            st.caption(f"Método: {d['metodo']} · tabelas: {d['n_tabelas']} · "
+                       f"linhas reconhecidas: {d['linhas_reconhecidas']} de {d['linhas_texto']}")
+            st.code(d["texto"] + ("\n\n--- tabela ---\n" + d["tabela"] if d["tabela"] else ""), language=None)
 
 
 @st.cache_data(show_spinner=False)
@@ -109,6 +136,8 @@ def pagina_subscricoes() -> None:
     periodo = f"{extrato['data'].min():%d/%m/%Y} a {extrato['data'].max():%d/%m/%Y}"
     n_ficheiros = f" em {len(ficheiros)} ficheiros" if ficheiros and len(ficheiros) > 1 else ""
     st.caption(f"{len(extrato)} movimentos lidos{n_ficheiros}, de {periodo}.")
+
+    mostrar_diagnostico(extrato, ficheiros)
 
     dias_cobertos = (extrato["data"].max() - extrato["data"].min()).days
     if recorrentes.empty or dias_cobertos < 55:
