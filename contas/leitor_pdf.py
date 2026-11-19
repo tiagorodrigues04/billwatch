@@ -32,7 +32,8 @@ from datetime import date
 
 import pandas as pd
 
-from .extrato import SEPARADOR_DETALHE, normalizar_extrato, tabela_de_linhas
+from .extrato import (MENSAGEM_INVESTIMENTO, SEPARADOR_DETALHE, ExtratoNaoBancario, LeituraDuvidosa,
+                      normalizar_extrato, parece_investimento, problemas_de_leitura, tabela_de_linhas)
 from .texto import anonimizar, chave, converter_numero, corrigir_texto_pdf, e_valor, ler_data_inicio
 
 # Palavras de cabeçalho -> tipo de coluna
@@ -83,6 +84,8 @@ class Movimento:
     origem: str = "colunas"
     tipo_coluna: str | None = None   # debito / credito / valor / None (sem cabeçalho)
     sinal_escrito: int = 0           # -1 se o valor vinha com "-", +1 com "+", 0 sem sinal
+    acima: list = field(default_factory=list)    # linhas de texto da descrição por cima da data
+    abaixo: list = field(default_factory=list)   # linhas de texto da descrição por baixo
 
 
 @dataclass
@@ -196,7 +199,33 @@ def _palavras_da_data(linha: list[Palavra]) -> tuple[date, bool, int] | None:
     return data, tem_ano, n
 
 
-def _ler_palavras(pdf) -> tuple[list[Movimento], dict]:
+def _juntar_linhas_soltas(movimentos: list[Movimento], soltas: list, altura: float, topo_cabecalho) -> None:
+    """Linhas só com texto pertencem à descrição do movimento mais próximo na vertical.
+
+    Serve para descrições em 2 linhas (Revolut: "Para: Netflix" por baixo) e para tabelas
+    com células centradas, em que a 1.ª linha da descrição fica por cima da data.
+    """
+    if not movimentos:
+        return
+    for top, x0, texto in soltas:
+        if topo_cabecalho is not None and top < topo_cabecalho:
+            continue                                   # títulos por cima do cabeçalho
+        melhor = min(movimentos, key=lambda m: (abs(m.top - top), m.top > top))   # empate: o de cima
+        if abs(melhor.top - top) > altura * 1.25 or x0 < melhor.x_descricao - 8:
+            continue
+        if len(melhor.acima) + len(melhor.abaixo) >= 3:
+            continue
+        (melhor.acima if top < melhor.top else melhor.abaixo).append(texto)
+    for m in movimentos:
+        principal = " ".join(m.acima + ([m.descricao] if m.descricao else [])).strip()
+        detalhe = " ".join(m.abaixo).strip()
+        if not principal:
+            principal, detalhe = detalhe, ""
+        m.descricao = principal + (SEPARADOR_DETALHE + detalhe if detalhe else "")
+        m.linhas_extra = len(m.acima) + len(m.abaixo)
+
+
+def _ler_palavras(pdf, usar_cabecalho: bool = True) -> tuple[list[Movimento], dict]:
     estado = _Estado()
     movimentos: list[Movimento] = []
     saldo_inicial = None
@@ -208,15 +237,20 @@ def _ler_palavras(pdf) -> tuple[list[Movimento], dict]:
         alturas = [b[0].top - a[0].top for a, b in zip(linhas, linhas[1:]) if b[0].top > a[0].top]
         altura = statistics.median(alturas) if alturas else 12.0
         ultimo_na_pagina: Movimento | None = None
+        da_pagina: list[Movimento] = []
+        soltas: list = []
+        topo_cabecalho = None
 
         for linha in linhas:
             texto_norm = _normal(" ".join(p.texto for p in linha))
             ancoras = _ancoras_cabecalho(linha)
             if ancoras:
-                estado.ancoras = ancoras
-                estado.cabecalho = " | ".join(t for t, _, _ in ancoras)
-                info["cabecalho"] = estado.cabecalho
+                if usar_cabecalho:
+                    estado.ancoras = ancoras
+                    estado.cabecalho = " | ".join(t for t, _, _ in ancoras)
+                    info["cabecalho"] = estado.cabecalho
                 ultimo_na_pagina, pendente = None, None
+                topo_cabecalho = linha[0].top
                 continue
 
             lida = _palavras_da_data(linha)
@@ -256,13 +290,9 @@ def _ler_palavras(pdf) -> tuple[list[Movimento], dict]:
                 data, tem_ano = ultimo_na_pagina.data, ultimo_na_pagina.tem_ano   # 2.º movimento do mesmo dia
                 x_desc = ultimo_na_pagina.x_descricao
             else:
-                # Continuação da descrição do movimento anterior (ex.: Revolut "Para: Netflix")
-                if (not valores and descricao and perto and ultimo_na_pagina.linhas_extra < 2
-                        and palavras and palavras[0].x0 >= ultimo_na_pagina.x_descricao - 8
-                        and not _RESUMO.search(texto_norm)):
-                    ultimo_na_pagina.descricao += SEPARADOR_DETALHE + descricao
-                    ultimo_na_pagina.linhas_extra += 1
-                    ultimo_na_pagina.top = linha[0].top
+                # Linha só com texto: parte da descrição de um movimento (decidido no fim da página)
+                if not valores and descricao and palavras and not _RESUMO.search(texto_norm):
+                    soltas.append((linha[0].top, palavras[0].x0, descricao))
                 continue
             pendente = None
 
@@ -304,7 +334,10 @@ def _ler_palavras(pdf) -> tuple[list[Movimento], dict]:
                           pagina=n_pagina, top=linha[0].top, x_descricao=x_desc, tipo_coluna=tipo_mov,
                           sinal_escrito=(-1 if bruto < 0 else 1) if explicito else 0)
             movimentos.append(m)
+            da_pagina.append(m)
             ultimo_na_pagina = m
+
+        _juntar_linhas_soltas(da_pagina, soltas, altura, topo_cabecalho)
 
     info["saldo_inicial"] = saldo_inicial
     return movimentos, info
@@ -314,14 +347,15 @@ def _ler_palavras(pdf) -> tuple[list[Movimento], dict]:
 # Sinais pelo saldo e anos em falta
 # ---------------------------------------------------------------------------
 
-def _sinais_pelo_saldo(movimentos: list[Movimento], saldo_inicial: float | None) -> None:
+def _sinais_pelo_saldo(movimentos: list[Movimento], saldo_inicial: float | None) -> float | None:
     """Usa a variação do saldo para descobrir (ou confirmar) se cada valor entrou ou saiu.
 
     Testa as duas ordens possíveis (cronológica e do mais recente para o mais antigo)
-    e fica com a que explica mais movimentos.
+    e fica com a que explica mais movimentos. Devolve a fração de movimentos que o saldo
+    explica (None se o extrato não tiver saldos) — é uma boa medida de leitura correta.
     """
-    if sum(m.saldo is not None for m in movimentos) < max(2, len(movimentos) // 2):
-        return
+    if not movimentos or sum(m.saldo is not None for m in movimentos) < max(2, len(movimentos) // 2):
+        return None
 
     def sinais(ordem: list[Movimento], inicial) -> dict[int, float]:
         resultado, anterior = {}, inicial
@@ -337,8 +371,9 @@ def _sinais_pelo_saldo(movimentos: list[Movimento], saldo_inicial: float | None)
     direto = sinais(movimentos, saldo_inicial)
     inverso = sinais(list(reversed(movimentos)), saldo_inicial)
     melhor = direto if len(direto) >= len(inverso) else inverso
-    if len(melhor) < len(movimentos) * 0.3:
-        return
+    consistencia = len(melhor) / len(movimentos)
+    if consistencia < 0.3:
+        return consistencia
 
     # Se as colunas e o saldo discordarem muito, o saldo ganha (as colunas podem estar mal alinhadas).
     conhecidos = [m for m in movimentos if m.sinal_conhecido and id(m) in melhor]
@@ -348,6 +383,7 @@ def _sinais_pelo_saldo(movimentos: list[Movimento], saldo_inicial: float | None)
         if id(m) in melhor and (not m.sinal_conhecido or confiar_no_saldo):
             m.valor, m.sinal_conhecido = m.absoluto * melhor[id(m)], True
             m.origem = "saldo"
+    return consistencia
 
 
 def _sinais_pela_convencao(movimentos: list[Movimento]) -> None:
@@ -432,7 +468,20 @@ def _abrir(conteudo: bytes):
                          "Experimenta exportar o extrato em CSV ou Excel.") from erro
 
 
-def _ler(conteudo: bytes) -> tuple[pd.DataFrame, dict]:
+def _para_tabela(movimentos: list[Movimento]) -> pd.DataFrame:
+    if not movimentos:
+        return pd.DataFrame(columns=["data", "descricao", "valor"])
+    df = pd.DataFrame({
+        "data": pd.to_datetime([m.data for m in movimentos]),
+        "descricao": [m.descricao for m in movimentos],
+        # Sem coluna nem saldo que diga o sinal: assumimos saída (o mais comum num extrato).
+        "valor": [m.valor if m.valor is not None else -m.absoluto for m in movimentos],
+    })
+    return df[df["valor"].abs() > 0.004]
+
+
+def _candidatos(conteudo: bytes) -> tuple[list[dict], str, int]:
+    """Lê o PDF de várias maneiras. Devolve as leituras possíveis, o texto e as linhas com data."""
     try:
         with _abrir(conteudo) as pdf:
             texto = "\n".join(p.extract_text() or "" for p in pdf.pages)
@@ -440,53 +489,75 @@ def _ler(conteudo: bytes) -> tuple[pd.DataFrame, dict]:
                 raise ValueError("Este PDF parece ser uma imagem (digitalizado), por isso não tem texto para ler. "
                                  "Exporta o extrato diretamente da app ou do site do banco.")
             por_tabelas = _ler_tabelas(pdf)
-            movimentos, info = _ler_palavras(pdf)
+            leituras = [_ler_palavras(pdf, usar_cabecalho=True)]
+            if leituras[0][1]["cabecalho"]:
+                leituras.append(_ler_palavras(pdf, usar_cabecalho=False))   # e se o cabeçalho enganar?
     except ValueError:
         raise
     except Exception as erro:  # erros internos do leitor de PDF (protegido, danificado...)
         raise ValueError("Não consegui ler este PDF (pode estar protegido com palavra-passe ou danificado). "
                          "Experimenta exportar o extrato em CSV ou Excel.") from erro
 
-    _completar_anos(movimentos, texto)
-    _sinais_pelo_saldo(movimentos, info["saldo_inicial"])
-    _sinais_pela_convencao(movimentos)
-    por_palavras = pd.DataFrame({
-        "data": pd.to_datetime([m.data for m in movimentos]),
-        "descricao": [m.descricao for m in movimentos],
-        # Sem coluna nem saldo que diga o sinal: assumimos saída (o mais comum num extrato).
-        "valor": [m.valor if m.valor is not None else -m.absoluto for m in movimentos],
-    }) if movimentos else pd.DataFrame(columns=["data", "descricao", "valor"])
-    info["sem_sinal"] = sum(not m.sinal_conhecido for m in movimentos)
-    info["pelo_saldo"] = sum(m.origem == "saldo" for m in movimentos)
+    candidatos = []
+    if por_tabelas is not None:
+        candidatos.append({"metodo": "tabela", "df": por_tabelas, "consistencia": None, "cabecalho": ""})
+    for n, (movimentos, info) in enumerate(leituras):
+        if not movimentos:
+            continue
+        _completar_anos(movimentos, texto)
+        consistencia = _sinais_pelo_saldo(movimentos, info["saldo_inicial"])
+        _sinais_pela_convencao(movimentos)
+        candidatos.append({"metodo": "colunas" if n == 0 and info["cabecalho"] else "texto",
+                           "df": _para_tabela(movimentos), "consistencia": consistencia,
+                           "cabecalho": info["cabecalho"]})
+    return candidatos, texto, leituras[0][1]["linhas_com_data"]
 
-    def pontos(df):
-        if df is None or df.empty:
-            return -1
-        return len(df) + (len(df) * 0.2 if (df["valor"] > 0).any() and (df["valor"] < 0).any() else 0)
 
-    if pontos(por_tabelas) >= pontos(por_palavras) and por_tabelas is not None:
-        info["metodo"] = "tabela"
-        resultado = por_tabelas
-    else:
-        info["metodo"] = "colunas" if info["cabecalho"] else "texto"
-        resultado = por_palavras
-    if resultado.empty:
+def _qualidade(candidato: dict, maximo_linhas: int) -> float:
+    """0 a 1: descrições preenchidas, saldo coerente, valores plausíveis, poucas linhas perdidas."""
+    df = candidato["df"]
+    if df.empty:
+        return 0.0
+    q = 1.0 - float((df["descricao"].astype(str).str.strip().str.len() < 2).mean())
+    consistencia = candidato["consistencia"]
+    q *= (0.5 + 0.5 * consistencia) if consistencia is not None else 0.85
+    if any("vezes" in p for p in problemas_de_leitura(df)):
+        q *= 0.5
+    return q * (0.8 + 0.2 * len(df) / max(maximo_linhas, 1))
+
+
+def _escolher(conteudo: bytes) -> tuple[pd.DataFrame, dict]:
+    candidatos, texto, linhas_com_data = _candidatos(conteudo)
+    if parece_investimento(texto, linhas_com_data):
+        raise ExtratoNaoBancario(MENSAGEM_INVESTIMENTO)
+    if not candidatos:
         raise ValueError("Não encontrei movimentos neste PDF. Experimenta exportar em CSV ou Excel, "
                          "ou abre o diagnóstico para ver a estrutura do ficheiro.")
-    resultado = resultado[resultado["valor"].abs() > 0.004]
-    info["movimentos"] = len(resultado)
-    return resultado.sort_values("data", kind="stable").reset_index(drop=True), info
+    maximo = max(len(c["df"]) for c in candidatos)
+    for c in candidatos:
+        c["qualidade"] = _qualidade(c, maximo)
+    melhor = max(candidatos, key=lambda c: c["qualidade"])
+    info = {"metodo": melhor["metodo"], "cabecalho": melhor["cabecalho"], "linhas_com_data": linhas_com_data,
+            "movimentos": len(melhor["df"]), "qualidade": round(melhor["qualidade"], 2),
+            "estrategias": " · ".join(f"{c['metodo']}: {len(c['df'])} mov., qualidade {c['qualidade']:.2f}"
+                                      for c in candidatos)}
+    return melhor["df"].sort_values("data", kind="stable").reset_index(drop=True), info
 
 
 def ler_extrato_pdf(conteudo: bytes) -> pd.DataFrame:
-    return _ler(conteudo)[0]
+    """Lê o PDF e só devolve o resultado se parecer fiável (senão lança LeituraDuvidosa)."""
+    df, _ = _escolher(conteudo)
+    problemas = problemas_de_leitura(df)
+    if problemas:
+        raise LeituraDuvidosa(problemas, df)
+    return df
 
 
 def diagnostico_pdf(conteudo: bytes, max_linhas: int = 45) -> dict:
     """Informação para perceber porque é que um PDF foi mal lido — sem dados pessoais."""
     try:
-        df, info = _ler(conteudo)
-        info["erro"] = ""
+        df, info = _escolher(conteudo)
+        info["erro"] = "; ".join(problemas_de_leitura(df))
         info["entradas"] = int((df["valor"] > 0).sum())
         info["saidas"] = int((df["valor"] < 0).sum())
     except ValueError as erro:
