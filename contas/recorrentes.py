@@ -112,8 +112,10 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         if not valor_variavel and variacao > p.variacao_maxima_valor:
             # Valores muito diferentes = provavelmente compras normais (supermercado, café...).
             # Exceção: subida de preço — os valores antigos são estáveis e os últimos também.
-            antigos, recentes = valores[:-1], valores[-1:]
-            if not (np.std(antigos) / np.median(antigos) <= p.variacao_maxima_valor):
+            antigos = valores[:-1]
+            antigos_estaveis = np.std(antigos) / np.median(antigos) <= p.variacao_maxima_valor
+            salto_plausivel = valores[-1] <= np.median(antigos) * 2  # subidas de preço reais não duplicam
+            if not (antigos_estaveis and salto_plausivel):
                 continue
 
         ultimo_valor = float(valores[-1])
@@ -129,7 +131,7 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
                 i -= 1
             if i > 0:
                 antigo = float(valores[i - 1])
-                if ultimo_valor > antigo * (1 + p.aumento_alerta):
+                if antigo * (1 + p.aumento_alerta) < ultimo_valor <= antigo * 2:
                     subida = (ultimo_valor / antigo - 1) * 100
                     quando = datas[i].strftime("%m/%Y")
                     alertas.append(
