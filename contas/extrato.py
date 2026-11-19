@@ -315,3 +315,53 @@ def ler_extrato_pdf(conteudo: bytes) -> pd.DataFrame:
             return por_tabelas
         texto = "\n".join(p.extract_text() or "" for p in pdf.pages)
     return _ler_pdf_texto(texto)
+
+
+# ---------------------------------------------------------------------------
+# Diagnóstico anónimo (para reportar problemas sem partilhar dados pessoais)
+# ---------------------------------------------------------------------------
+
+_PALAVRAS_SEGURAS = {
+    "data", "datas", "mov", "movimento", "movimentos", "valor", "valores", "descricao", "descritivo",
+    "debito", "debitos", "credito", "creditos", "saldo", "saldos", "montante", "disponivel",
+    "contabilistico", "inicial", "anterior", "final", "eur", "euro", "euros", "total", "totais",
+    "lancamento", "operacao", "tipo", "moeda", "extrato", "conta", "pagina", "de", "a", "e", "do", "da",
+}
+
+
+def anonimizar(texto: str) -> str:
+    """Troca letras por 'x' e números por '9', exceto palavras típicas de cabeçalho.
+
+    "05-10-2026 COMPRA NETFLIX.COM 9,99 1.234,56" -> "99-99-9999 xxxxxx xxxxxxx.xxx 9,99 9.999,99"
+    Mantém a estrutura (espaços, pontuação, posição das colunas), que é o que preciso
+    para corrigir o leitor, sem revelar nomes, descrições, datas ou valores.
+    """
+    def trocar(m: re.Match) -> str:
+        palavra = m.group(0)
+        if _sem_acentos(palavra).lower() in _PALAVRAS_SEGURAS:
+            return palavra
+        return re.sub(r"\d", "9", re.sub(r"[^\W\d_]", "x", palavra))
+    return re.sub(r"\w+", trocar, texto)
+
+
+def diagnostico_pdf(conteudo: bytes, max_linhas: int = 45) -> dict:
+    import pdfplumber
+
+    with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
+        tabelas = [t for p in pdf.pages[:2] for t in (p.extract_tables() or [])]
+        texto = "\n".join(p.extract_text() or "" for p in pdf.pages[:2])
+        texto_layout = "\n".join(p.extract_text(layout=True) or "" for p in pdf.pages[:2])
+        metodo = "tabela" if _ler_pdf_tabelas(pdf) is not None else "texto"
+    linhas = [l.rstrip() for l in texto_layout.splitlines() if l.strip()]
+    linhas_mov = sum(1 for l in texto.splitlines() if _LINHA.match(l))
+    amostra_tabela = []
+    for t in tabelas[:2]:
+        amostra_tabela += [" | ".join(anonimizar(str(c or "")) for c in linha) for linha in t[:8]]
+    return {
+        "metodo": metodo,
+        "linhas_texto": len(linhas),
+        "linhas_reconhecidas": linhas_mov,
+        "n_tabelas": len(tabelas),
+        "texto": "\n".join(anonimizar(l) for l in linhas[:max_linhas]),
+        "tabela": "\n".join(amostra_tabela),
+    }
