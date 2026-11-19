@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 32" width="26" height="32" role="img" aria-label="BillWatch"><g transform="translate(0 0)">
+  <path d="M2 2h22v26l-2.75-2.2-2.75 2.2-2.75-2.2-2.75 2.2-2.75-2.2L7.5 28l-2.75-2.2L2 28z" fill="#FFFFFF" stroke="#1B2B44" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="9.5" cy="10" r="2.1" fill="#1B2B44"/><circle cx="16.5" cy="10" r="2.1" fill="#1B2B44"/>
+  <rect x="6.5" y="16" width="13" height="3" rx="1" fill="#FFE45C"/><rect x="6.5" y="21" width="9" height="1.6" rx=".8" fill="#9AA7B8"/>
+</g></svg>

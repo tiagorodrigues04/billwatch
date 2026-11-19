@@ -60,25 +60,46 @@ Para acrescentar um formato novo: imitá-lo em `tests/gerar_formatos.py` e corre
 ## Estrutura
 
 ```
-app.py                  Interface (Streamlit): abas Subscrições, Luz, Como funciona
-contas/
+app.py                  Configuração, estilo e navegação entre páginas
+paginas/
+  subscricoes.py        Carregar extratos e ver o talão das contas fixas
+  luz.py                Ler a fatura da luz e comparar ofertas
+  sobre.py              Como funciona, em linguagem simples
+ui/
+  estilo.py             Identidade visual (cores, CSS do talão)
+  componentes.py        Peças visuais: talão, passos, gráfico, rodapé
+  leitura.py            Ler os ficheiros carregados, com plano B se o formato for desconhecido
+  dados.py              Leituras com cache
+contas/                 A lógica, sem Streamlit (testável à parte)
   texto.py              Ler números e datas escritos de qualquer forma; anonimizar
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
-  leitor_pdf.py         Extratos em PDF (tabelas desenhadas ou palavras com posição)
+  leitor_pdf.py         Extratos em PDF (várias estratégias, fica a mais coerente)
   catalogo.py           Comerciantes conhecidos em PT → nome e categoria
-  recorrentes.py        O algoritmo de deteção de pagamentos recorrentes + alertas
-  energia.py            Lê a fatura da luz (PDF) e compara ofertas
-  exemplo.py            Gera o extrato fictício usado na demo e nos testes
-dados/
-  ofertas_luz.csv       Tabela de ofertas — VALORES DE EXEMPLO, substituir por reais
-  fatura_exemplo.pdf    Fatura fictícia para testar a leitura de PDF
-tests/
-  test_contas.py        Testes do algoritmo e casos concretos
-  test_formatos.py      Os 17 formatos + ficheiros estragados, PDFs protegidos/digitalizados
-  gerar_formatos.py     Gera a coleção de formatos fictícios
-  formatos/             Os ficheiros gerados + resultados esperados
+  recorrentes.py        Deteção de pagamentos recorrentes + alertas
+  energia.py            Fatura da luz e comparação de ofertas
+  exemplo.py            Extrato fictício da demo e dos testes
+static/                 Logótipo, favicon e fontes (servidos pela própria app)
+.streamlit/config.toml  Tema: cores, fontes e tamanhos
+dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
+tests/                  Testes da lógica, dos formatos e da interface
 .github/workflows/      Corre os testes no GitHub a cada alteração
 ```
+
+## Design
+
+A ideia central é **o talão**: o resultado aparece como um talão de Multibanco, com cada
+conta fixa numa linha e o total por mês no fundo. As cores só aparecem quando significam
+alguma coisa:
+
+| Cor | Significa |
+|---|---|
+| Papel `#EEF2F5` e tinta `#1B2B44` | a base: fundo e texto |
+| Marcador `#FFE45C` | uma linha que merece atenção, como passar o marcador num extrato |
+| Caneta vermelha `#C62D2D` | a nota que explica o alerta (preço subiu, cobrança repetida…) |
+| Riscado a vermelho | um serviço que deixou de ser cobrado |
+
+Tipos de letra: **Schibsted Grotesk** na interface e **IBM Plex Mono** só dentro do talão.
+São servidos pela própria app (`static/fontes`, licença OFL), sem pedidos a terceiros.
 
 ## Como funciona (o que tens de saber explicar numa entrevista)
 
