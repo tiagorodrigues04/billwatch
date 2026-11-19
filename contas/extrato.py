@@ -25,7 +25,8 @@ from .texto import (anonimizar, chave, converter_datas, converter_numero, corrig
                     sem_acentos)
 
 __all__ = [
-    "FormatoDesconhecido", "carregar_extrato", "ler_tabela", "detetar_colunas", "normalizar_extrato",
+    "FormatoDesconhecido", "ExtratoNaoBancario", "LeituraDuvidosa", "problemas_de_leitura",
+    "parece_investimento", "carregar_extrato", "ler_tabela", "detetar_colunas", "normalizar_extrato",
     "normalizar_com_mapa", "sugerir_mapa", "juntar_extratos", "chave_comerciante", "e_debito_direto",
     "converter_numero", "corrigir_texto_pdf", "anonimizar", "diagnostico_tabela",
 ]
@@ -38,6 +39,78 @@ class FormatoDesconhecido(ValueError):
         super().__init__(mensagem)
         self.tabela = tabela
 
+
+class ExtratoNaoBancario(ValueError):
+    """O ficheiro é de outro tipo (ex.: extrato de cripto ou de investimentos), não de uma conta."""
+
+
+class LeituraDuvidosa(ValueError):
+    """O ficheiro foi lido, mas o resultado não parece um extrato real (descrições vazias,
+    valores impossíveis...). Leva o extrato lido, os problemas e, se houver, a tabela em bruto."""
+
+    def __init__(self, problemas: list[str], extrato: pd.DataFrame, tabela: pd.DataFrame | None = None):
+        super().__init__("A leitura deste ficheiro não parece fiável: " + "; ".join(problemas) + ".")
+        self.problemas = problemas
+        self.extrato = extrato
+        self.tabela = tabela
+
+
+# Tickers de cripto comuns (palavra inteira) e palavras de extratos de investimento.
+CRIPTO = re.compile(r"\b(BTC|ETH|SOL|XRP|ADA|DOGE|DOT|LTC|USDT|USDC|BNB|AVAX|MATIC|POL|SHIB|LINK|TRX|PEPE|"
+                    r"XLM|ATOM|UNI|NEAR|APT|ARB|OP|SUI|TON|BCH|ETC|FIL|ALGO|HBAR|ICP|BITCOIN|ETHEREUM|SOLANA|"
+                    r"CARDANO|RIPPLE|DOGECOIN|POLKADOT|LITECOIN|TETHER|AVALANCHE|CHAINLINK|POLYGON)\b")
+_PALAVRAS_INVESTIMENTO = re.compile(r"\b(quantidade|quantity|qty|preco por unidade|price per unit|preco|price|"
+                                    r"ativo|asset|simbolo|symbol|ticker|cotacao)\b")
+
+
+def parece_investimento(texto: str, linhas_com_data: int) -> bool:
+    """Extrato de cripto/investimentos: muitas moedas/tickers e colunas de quantidade e preço."""
+    if linhas_com_data < 3:
+        return False
+    tickers = len(CRIPTO.findall(sem_acentos(texto).upper()))
+    # Uma linha de cabeçalho com "Data" e 2+ colunas de investimento (Quantidade, Preço, Ativo...)
+    tem_colunas = any(
+        re.search(r"\b(data|date)\b", linha) and len(set(_PALAVRAS_INVESTIMENTO.findall(linha))) >= 2
+        for linha in (chave(l) for l in texto.splitlines())
+    )
+    return tickers >= max(3, 0.3 * linhas_com_data) and tem_colunas
+
+
+def _colunas_de_investimento(colunas: list[str]) -> bool:
+    nomes = [chave(c) for c in colunas]
+    quantidade = any(any(n in c for n in ("quantidade", "quantity", "qty")) for c in nomes)
+    preco = any(any(n in c for n in ("preco", "price", "cotacao")) for c in nomes)
+    ativo = any(any(n in c for n in ("ativo", "asset", "simbolo", "symbol", "ticker", "moeda", "currency"))
+                for c in nomes)
+    return quantidade and preco and ativo
+
+
+def problemas_de_leitura(df: pd.DataFrame) -> list[str]:
+    """Sinais de que um extrato foi mal lido. Lista vazia = parece fiável."""
+    if df.empty:
+        return ["não encontrei movimentos"]
+    problemas = []
+    vazias = float((df["descricao"].astype(str).str.strip().str.len() < 2).mean())
+    if vazias > 0.5:
+        problemas.append(f"{vazias:.0%} dos movimentos não têm descrição")
+    entradas = abs(float(df.loc[df["valor"] > 0, "valor"].sum()))
+    saidas = abs(float(df.loc[df["valor"] < 0, "valor"].sum()))
+    if saidas > 20000 and saidas > 10 * max(entradas, 1):
+        problemas.append(f"as saídas ({saidas:,.0f} €) são mais de 10 vezes as entradas ({entradas:,.0f} €)"
+                         .replace(",", " "))
+    elif entradas > 20000 and entradas > 10 * max(saidas, 1):
+        problemas.append(f"as entradas ({entradas:,.0f} €) são mais de 10 vezes as saídas ({saidas:,.0f} €)"
+                         .replace(",", " "))
+    repetidos = df[df["descricao"].astype(str).str.strip().str.len() < 2].duplicated(["data", "valor"]).mean() \
+        if vazias > 0 else 0.0
+    if repetidos and repetidos > 0.3 and vazias > 0.3:
+        problemas.append("muitos valores repetidos no mesmo dia sem descrição")
+    return problemas
+
+
+MENSAGEM_INVESTIMENTO = ("Este ficheiro parece ser um extrato de cripto ou de investimentos (compras e vendas "
+                         "de ativos), e não o extrato de uma conta. Não tem pagamentos de contas, por isso "
+                         "ficou de fora da análise.")
 
 # Palavras que costumam aparecer no nome de cada coluna, em PT e EN (por ordem de prioridade).
 NOMES_DATA = ["data mov", "data lanc", "data oper", "data transa", "started", "data de inicio",
@@ -337,6 +410,8 @@ def normalizar_extrato(df: pd.DataFrame) -> pd.DataFrame:
     """Converte uma tabela de extrato qualquer no formato padrão (data, descricao, valor)."""
     df = df.copy()
     df.columns = [str(c) for c in df.columns]
+    if _colunas_de_investimento(list(df.columns)):
+        raise ExtratoNaoBancario(MENSAGEM_INVESTIMENTO)
     mapa = detetar_colunas(df)
     resultado = normalizar_com_mapa(df, mapa)
     if resultado.empty:
@@ -358,7 +433,11 @@ def carregar_extrato(conteudo: bytes, nome: str = "") -> pd.DataFrame:
     except Exception as erro:  # Excel danificado, HTML sem tabelas, binário qualquer...
         raise ValueError("Não consegui ler este ficheiro. Confirma que é um extrato em CSV, Excel ou PDF "
                          "exportado do banco.") from erro
-    return normalizar_extrato(tabela)
+    extrato = normalizar_extrato(tabela)
+    problemas = problemas_de_leitura(extrato)
+    if problemas:
+        raise LeituraDuvidosa(problemas, extrato, tabela)
+    return extrato
 
 
 def diagnostico_tabela(df: pd.DataFrame, linhas: int = 12) -> str:

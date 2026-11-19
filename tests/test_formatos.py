@@ -1,4 +1,5 @@
-"""Todos os formatos da coleção (tests/formatos) têm de dar exatamente os mesmos movimentos.
+"""Todos os formatos bancários da coleção (tests/formatos) têm de dar exatamente os mesmos movimentos;
+os ficheiros especiais (cripto, ilegíveis) têm de ficar de fora com aviso.
 
 Para acrescentar um formato novo: imitá-lo em tests/gerar_formatos.py e correr esse script.
 """
@@ -65,6 +66,31 @@ def test_cripto_conta_como_poupanca_e_nao_como_custo(nome):
     r = resumo(rec)
     assert r["poupanca_mensal"] == pytest.approx(25 * 52 / 12, abs=0.01)
     assert r["mensal"] == pytest.approx(442.06)
+
+
+# --- ficheiros que não são extratos de conta, ou ilegíveis -------------------------
+
+ESPECIAIS = json.loads((PASTA / "especiais.json").read_text())
+
+
+@pytest.mark.parametrize("nome", sorted(ESPECIAIS))
+def test_ficheiros_especiais_nao_dao_numeros_absurdos(nome):
+    from contas.extrato import ExtratoNaoBancario, LeituraDuvidosa
+    esperado = {"nao_bancario": ExtratoNaoBancario, "duvidosa": LeituraDuvidosa}[ESPECIAIS[nome]]
+    with pytest.raises(esperado) as erro:
+        carregar_extrato((PASTA / nome).read_bytes(), nome)
+    if ESPECIAIS[nome] == "duvidosa":
+        assert erro.value.problemas and not erro.value.extrato.empty   # dá para "usar mesmo assim"
+
+
+def test_problemas_de_leitura():
+    from contas.extrato import problemas_de_leitura
+    bom = carregar_extrato((PASTA / "c02_montante_virgula.csv").read_bytes(), "c02.csv")
+    assert problemas_de_leitura(bom) == []
+    mau = pd.DataFrame({"data": pd.to_datetime(["2025-03-13"] * 6), "descricao": [""] * 6,
+                        "valor": [-115.77, -115.77, -79350.12, -0.79, -0.79, 10.0]})
+    problemas = problemas_de_leitura(mau)
+    assert any("descrição" in p for p in problemas) and any("10 vezes" in p for p in problemas)
 
 
 # --- casos-limite --------------------------------------------------------------

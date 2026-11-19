@@ -306,6 +306,39 @@ def p06(df):  # inglês: "Oct 5, 2026", "Money out / Money in / Balance", €1,2
     return pdf, df
 
 
+def p08(df):  # células com 2 linhas centradas: a 1.ª linha da descrição fica POR CIMA da data
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+
+    def cabecalho(y):
+        c.setFont("Helvetica-Bold", 6)
+        for t, x, al in [("Data", 30, "l"), ("Descrição", 90, "l"), ("Débito", 420, "r"),
+                         ("Crédito", 480, "r"), ("Saldo", 550, "r")]:
+            (c.drawRightString if al == "r" else c.drawString)(x, y, t)
+        c.setFont("Helvetica", 6)
+        return y - 22
+
+    y = cabecalho(800)
+    for (_, r), s in zip(df.iterrows(), saldos(df)):
+        if y < 60:
+            c.showPage()
+            y = cabecalho(800)
+        palavras = r.descricao.split()
+        c.drawString(90, y + 4.5, " ".join(palavras[:3]))
+        if palavras[3:]:
+            c.drawString(90, y - 4.5, " ".join(palavras[3:]))
+        c.drawString(30, y, r.data.strftime("%d/%m/%Y"))
+        c.drawRightString(420 if r.valor < 0 else 480, y, pt(r.valor))
+        c.drawRightString(550, y, pt(s))
+        y -= 18
+    c.showPage()
+    c.save()
+    return buf.getvalue(), df
+
+
 GERADORES = {
     "c01_pt_debito_credito.csv": c01, "c02_montante_virgula.csv": c02, "c03_en_amount.csv": c03,
     "c04_valor_dc.csv": c04, "c05_sinal_no_fim.csv": c05, "c06_revolut_en.csv": c06,
@@ -313,6 +346,49 @@ GERADORES = {
     "x01_cabecalho.xlsx": x01, "x02_html.xls": x02, "x03_datas_serie.xlsx": x03,
     "p01_grelha.pdf": p01, "p02_texto_colunas.pdf": p02, "p03_revolut.pdf": p03,
     "p04_sem_ano_sem_saldo.pdf": p04, "p05_marcas_dc.pdf": p05, "p06_ingles.pdf": p06,
+    "p08_celulas_centradas.pdf": p08,
+}
+
+
+# ---------------------------------------------------------------------------
+# Ficheiros que NÃO são extratos de conta, ou que não se conseguem ler com confiança
+# ---------------------------------------------------------------------------
+
+_CRIPTO = [("SOL", 115.77, 0.79), ("BTC", 79350.12, 1.59), ("ETH", 1735.40, 2.11), ("SOL", 115.77, 0.79),
+           ("XRP", 2.21, 5.00), ("BTC", 79350.12, 3.17), ("ADA", 0.68, 2.00), ("SOL", 115.77, 2.32)]
+
+
+def p07_cripto():  # extrato de cripto (compras de moedas): colunas Quantidade / Preço / Valor
+    linhas = []
+    for i, (moeda, preco, valor) in enumerate(_CRIPTO * 4):
+        dia = f"{13 + i // 6:02d}/03/2025"
+        linhas.append([(dia, 30, "l"), (moeda, 90, "l"), ("Compra", 130, "l"), (f"{valor / preco:.8f}".replace(".", ","), 260, "r"),
+                       (f"{pt(preco)} €", 340, "r"), (f"{pt(valor)} €", 410, "r"), ("0,02 €", 470, "r")])
+    pdf = _pdf_texto([(["Extrato de criptomoedas (fictício)", "Período: 01/01/2025 - 31/12/2025"], linhas)],
+                     [("Data", 30, "l"), ("Símbolo", 90, "l"), ("Tipo", 130, "l"), ("Quantidade", 260, "r"),
+                      ("Preço", 340, "r"), ("Valor", 410, "r"), ("Comissões", 470, "r")])
+    return pdf
+
+
+def c09_cripto():  # exportação CSV de cripto (estilo Revolut)
+    linhas = ["Symbol,Type,Quantity,Price,Value,Fees,Date"]
+    for i, (moeda, preco, valor) in enumerate(_CRIPTO):
+        linhas.append(f"{moeda},BUY,{valor / preco:.8f},EUR {preco:.2f},EUR {valor:.2f},EUR 0.02,2025-03-{13 + i:02d} 08:15:00")
+    return "\n".join(linhas).encode("utf-8")
+
+
+def p09_ilegivel():  # o sintoma que apareceu num PDF real: linhas com data e só números, sem descrição
+    linhas = []
+    for i, (moeda, preco, valor) in enumerate(_CRIPTO * 4):
+        dia = f"{13 + i // 6:02d}/03/2025"
+        linhas.append([(dia, 30, "l"), (f"{pt(preco)} €", 340, "r"), (f"{pt(valor)} €", 420, "r")])
+    return _pdf_texto([(["Documento (fictício)"], linhas)], [("Data", 30, "l"), ("Valor", 340, "r"), ("Crédito", 420, "r")])
+
+
+ESPECIAIS = {
+    "p07_cripto.pdf": (p07_cripto, "nao_bancario"),
+    "c09_cripto.csv": (c09_cripto, "nao_bancario"),
+    "p09_ilegivel.pdf": (p09_ilegivel, "duvidosa"),
 }
 
 
@@ -326,6 +402,12 @@ def main() -> None:
                           "entradas": int((movimentos["valor"] > 0).sum())}
         print(f"{nome:32} {esperado[nome]}")
     (PASTA / "esperado.json").write_text(json.dumps(esperado, indent=2, ensure_ascii=False))
+    especiais = {}
+    for nome, (gerador, resultado) in ESPECIAIS.items():
+        (PASTA / nome).write_bytes(gerador())
+        especiais[nome] = resultado
+        print(f"{nome:32} -> {resultado}")
+    (PASTA / "especiais.json").write_text(json.dumps(especiais, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

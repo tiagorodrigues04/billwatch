@@ -35,15 +35,25 @@ cada alteração (separador *Actions*).
 | **Valores** | `1.234,56` `1,234.56` `-9,99` `9,99-` `(9,99)` `+9,99` `9,99 D/C` `€9.99` `9,99 €` `1 234,56` · ou valor positivo com coluna D/C |
 | **Datas** | `05-10-2026` `05/10/26` `05.10.2026` `2026-10-05` `5 out 2026` `5 de out. de 2026` `Oct 5, 2026` · e sem ano (`05.10`), com o ano tirado do período do extrato |
 | **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam |
+| **Não é um extrato da conta** | extratos de cripto/investimentos (colunas Quantidade/Preço, tickers como BTC, ETH, SOL) são reconhecidos e ficam de fora, com uma explicação |
+
+**Verificação de qualidade.** Cada leitura é verificada antes de entrar na análise: se a
+maioria dos movimentos não tiver descrição, se as saídas forem mais de 10× as entradas
+(ou o contrário) ou se houver muitos valores repetidos sem descrição, o ficheiro fica de
+fora com um aviso a explicar porquê — em vez de aparecerem números absurdos. O
+utilizador pode corrigir as colunas (CSV/Excel) ou decidir usá-lo mesmo assim.
+No PDF, o leitor experimenta várias estratégias (tabelas desenhadas, colunas pelo
+cabeçalho, só texto) e fica com a mais coerente: descrições preenchidas e saldo a bater certo.
 
 **Se um formato não for reconhecido**, a app não fica presa: mostra a tabela e pede ao
 utilizador que diga que coluna é a data, a descrição e o valor (já com um palpite
 feito pelo conteúdo). Há também a opção *Inverter sinais*, e um **diagnóstico anónimo**
 (letras → `x`, números → `9`) que se pode partilhar para corrigir o leitor sem expor dados.
 
-Está tudo testado em `tests/formatos/`: 17 extratos fictícios que imitam formas reais de
+Está tudo testado em `tests/formatos/`: 18 extratos fictícios que imitam formas reais de
 exportar, todos gerados a partir dos mesmos movimentos — e o teste exige que todos deem
-**exatamente** os mesmos movimentos, comerciantes e resultado final.
+**exatamente** os mesmos movimentos, comerciantes e resultado final. Há ainda 3 ficheiros
+"especiais" (cripto em PDF e CSV, e um PDF ilegível) que têm de ficar de fora com aviso.
 Para acrescentar um formato novo: imitá-lo em `tests/gerar_formatos.py` e correr
 `python tests/gerar_formatos.py`.
 

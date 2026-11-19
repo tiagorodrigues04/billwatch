@@ -13,8 +13,9 @@ import streamlit as st
 
 from contas.energia import POTENCIAS_PADRAO, carregar_ofertas, comparar, custo_periodo, ler_fatura_pdf
 from contas.exemplo import extrato_csv_banco, gerar_extrato
-from contas.extrato import (FormatoDesconhecido, carregar_extrato, diagnostico_tabela, juntar_extratos,
-                            ler_tabela, normalizar_com_mapa, sugerir_mapa)
+from contas.extrato import (ExtratoNaoBancario, FormatoDesconhecido, LeituraDuvidosa, carregar_extrato,
+                            diagnostico_tabela, juntar_extratos, ler_tabela, normalizar_com_mapa,
+                            problemas_de_leitura, sugerir_mapa)
 from contas.leitor_pdf import diagnostico_pdf
 from contas.recorrentes import Parametros, detetar_recorrentes, euro, possiveis_subscricoes, preparar, resumo
 
@@ -71,12 +72,16 @@ def _estrutura_anonima(f) -> None:
     if "cabecalho" in d:
         resumo_pdf = (f"método: {d.get('metodo')} · colunas: {d.get('cabecalho') or '—'} · "
                       f"linhas com data: {d.get('linhas_com_data', 0)} · movimentos: {d.get('movimentos', 0)}")
+        if d.get("estrategias"):
+            resumo_pdf += f"\nestratégias: {d['estrategias']}"
+        if d.get("erro"):
+            resumo_pdf += f"\nproblemas: {d['erro']}"
     st.code((resumo_pdf + "\n\n" if resumo_pdf else "") + (d.get("texto") or d.get("erro") or ""), language=None)
 
 
-def _escolher_colunas(f, erro: FormatoDesconhecido) -> pd.DataFrame | None:
+def _escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci este formato sozinho.",
+                      exigir_confirmacao: bool = False) -> pd.DataFrame | None:
     """Plano B: o utilizador diz que coluna é qual. Nunca fica preso num formato novo."""
-    tabela = erro.tabela
     sugestao = sugerir_mapa(tabela)
     colunas = ["—"] + [str(c) for c in tabela.columns]
     k = f"mapa_{f.name}_{f.size}"
@@ -88,7 +93,7 @@ def _escolher_colunas(f, erro: FormatoDesconhecido) -> pd.DataFrame | None:
         return None if valor == "—" else valor
 
     with st.container(border=True):
-        st.markdown(f"**{f.name}** — não reconheci este formato sozinho. Diz-me que coluna é qual:")
+        st.markdown(f"**{f.name}** — {mensagem} Diz-me que coluna é qual:")
         st.dataframe(tabela.head(6), hide_index=True, width="stretch")
         c1, c2 = st.columns(2)
         mapa = {"data": escolha("Data", "data", c1), "descricao": escolha("Descrição", "descricao", c2)}
@@ -111,8 +116,29 @@ def _escolher_colunas(f, erro: FormatoDesconhecido) -> pd.DataFrame | None:
         if df.empty:
             st.error("Com estas colunas não encontrei movimentos com data e valor. Experimenta outras.")
             return None
+        for problema in problemas_de_leitura(df):
+            st.caption(f"⚠️ Atenção: {problema}.")
+        if exigir_confirmacao and not st.checkbox(f"Usar estas colunas ({len(df)} movimentos)", key=f"{k}_ok"):
+            return None
         st.success(f"✓ {len(df)} movimentos lidos com estas colunas.")
         return df
+
+
+def _leitura_duvidosa(f, erro: LeituraDuvidosa) -> pd.DataFrame | None:
+    """A leitura deu um resultado estranho: fica de fora, a não ser que o utilizador decida."""
+    problemas = "\n".join(f"- {p}" for p in erro.problemas)
+    if erro.tabela is not None:   # CSV/Excel: provavelmente as colunas foram mal escolhidas
+        return _escolher_colunas(f, erro.tabela, f"a leitura automática não parece certa:\n{problemas}\n\n",
+                                 exigir_confirmacao=True)
+    with st.container(border=True):
+        st.warning(f"**{f.name}** — a leitura deste ficheiro não parece certa, por isso ficou de fora "
+                   f"da análise:\n{problemas}")
+        st.caption("Isto costuma acontecer com documentos que não são o extrato da conta "
+                   "(cripto, investimentos, faturas…) ou com PDFs num formato muito invulgar.")
+        usar = st.checkbox("Usar este ficheiro mesmo assim", key=f"usar_{f.name}_{f.size}")
+        with st.expander("Ver a estrutura anónima deste ficheiro"):
+            _estrutura_anonima(f)
+    return erro.extrato if usar else None
 
 
 def ler_ficheiros(ficheiros) -> list[pd.DataFrame]:
@@ -120,8 +146,14 @@ def ler_ficheiros(ficheiros) -> list[pd.DataFrame]:
     for f in ficheiros:
         try:
             lidos.append(_ler_extrato(f.getvalue(), f.name))
+        except ExtratoNaoBancario as erro:
+            st.info(f"📈 **{f.name}** — {erro}")
+        except LeituraDuvidosa as erro:
+            df = _leitura_duvidosa(f, erro)
+            if df is not None:
+                lidos.append(df)
         except FormatoDesconhecido as erro:
-            df = _escolher_colunas(f, erro)
+            df = _escolher_colunas(f, erro.tabela)
             if df is not None:
                 lidos.append(df)
         except ValueError as erro:
