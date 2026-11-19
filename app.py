@@ -73,12 +73,15 @@ def _ofertas_base() -> pd.DataFrame:
 # Aba 1 — Subscrições
 # ---------------------------------------------------------------------------
 
-def modo_rapido(extrato: pd.DataFrame, dias_cobertos: int) -> None:
+def modo_rapido(extrato: pd.DataFrame, dias_cobertos: int, confirmados: set[str] = frozenset()) -> None:
     """Para extratos curtos: mostra pagamentos a serviços conhecidos como possíveis subscrições."""
     if dias_cobertos < 55:
         st.info(f"O extrato cobre só {dias_cobertos + 1} dias. Para confirmar que um pagamento se repete "
                 "preciso de pelo menos 2 a 3 meses — junta mais ficheiros para resultados completos.")
     possiveis = possiveis_subscricoes(extrato)
+    if not possiveis.empty:
+        # Não repetir o que já foi confirmado como pagamento fixo.
+        possiveis = possiveis[~possiveis["comerciante"].isin(confirmados)]
     if possiveis.empty:
         return
     st.markdown("#### 🔎 Possíveis subscrições")
@@ -91,6 +94,7 @@ def modo_rapido(extrato: pd.DataFrame, dias_cobertos: int) -> None:
             "valor": st.column_config.NumberColumn("Valor no período", format="%.2f €"),
             "n_pagamentos": "Pagamentos",
             "ultimo": st.column_config.DateColumn("Último", format="DD/MM/YYYY"),
+            "nota": "Nota",
         },
     )
 
@@ -141,7 +145,8 @@ def pagina_subscricoes() -> None:
 
     dias_cobertos = (extrato["data"].max() - extrato["data"].min()).days
     if recorrentes.empty or dias_cobertos < 55:
-        modo_rapido(extrato, dias_cobertos)
+        confirmados = {c.split(" (")[0] for c in recorrentes["comerciante"]} if not recorrentes.empty else set()
+        modo_rapido(extrato, dias_cobertos, confirmados)
     if recorrentes.empty:
         return
 
