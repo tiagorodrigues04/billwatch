@@ -1,0 +1,87 @@
+{
+  "c01_pt_debito_credito.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c02_montante_virgula.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c03_en_amount.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c04_valor_dc.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c05_sinal_no_fim.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c06_revolut_en.csv": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "c07_revolut_extrato_pt.csv": {
+    "n": 77,
+    "total": -1006.42,
+    "entradas": 3
+  },
+  "c08_tabulacoes_milhares.csv": {
+    "n": 65,
+    "total": 568.58,
+    "entradas": 4
+  },
+  "x01_cabecalho.xlsx": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "x02_html.xls": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "x03_datas_serie.xlsx": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "p01_grelha.pdf": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "p02_texto_colunas.pdf": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "p03_revolut.pdf": {
+    "n": 77,
+    "total": -1006.42,
+    "entradas": 3
+  },
+  "p04_sem_ano_sem_saldo.pdf": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "p05_marcas_dc.pdf": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  },
+  "p06_ingles.pdf": {
+    "n": 64,
+    "total": -681.42,
+    "entradas": 3
+  }
+}

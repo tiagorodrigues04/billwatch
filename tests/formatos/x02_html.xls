@@ -1,0 +1,396 @@
+<html><head><meta charset='utf-8'></head><body><h3>Extrato</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Data</th>
+      <th>Descrição</th>
+      <th>Montante</th>
+      <th>Saldo</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>01-08-2026</td>
+      <td>COMPRA 3938 CAFE SANTA CRUZ</td>
+      <td>-5,00</td>
+      <td>1.495,00</td>
+    </tr>
+    <tr>
+      <td>01-08-2026</td>
+      <td>TRF MESADA FAMILIA</td>
+      <td>400,00</td>
+      <td>1.895,00</td>
+    </tr>
+    <tr>
+      <td>02-08-2026</td>
+      <td>TRF RENDA QUARTO REF 217308</td>
+      <td>-280,00</td>
+      <td>1.615,00</td>
+    </tr>
+    <tr>
+      <td>03-08-2026</td>
+      <td>DD FITNESS HUT COIMBRA REF 138684919</td>
+      <td>-29,99</td>
+      <td>1.585,01</td>
+    </tr>
+    <tr>
+      <td>05-08-2026</td>
+      <td>COMPRA 2232 NETFLIX.COM AMSTERDAM</td>
+      <td>-9,99</td>
+      <td>1.575,02</td>
+    </tr>
+    <tr>
+      <td>07-08-2026</td>
+      <td>COMPRA 5088 CONTINENTE COIMBRA</td>
+      <td>-46,02</td>
+      <td>1.529,00</td>
+    </tr>
+    <tr>
+      <td>08-08-2026</td>
+      <td>COMPRA 3442 SPOTIFY P685823118 STOCKHOLM</td>
+      <td>-4,99</td>
+      <td>1.524,01</td>
+    </tr>
+    <tr>
+      <td>08-08-2026</td>
+      <td>COMPRA 3662 CAFE SANTA CRUZ</td>
+      <td>-6,36</td>
+      <td>1.517,65</td>
+    </tr>
+    <tr>
+      <td>09-08-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-5,59</td>
+      <td>1.512,06</td>
+    </tr>
+    <tr>
+      <td>11-08-2026</td>
+      <td>COMPRA 7745 CAFE SANTA CRUZ</td>
+      <td>-5,37</td>
+      <td>1.506,69</td>
+    </tr>
+    <tr>
+      <td>12-08-2026</td>
+      <td>APPLE.COM/BILL ITUNES.COM</td>
+      <td>-0,99</td>
+      <td>1.505,70</td>
+    </tr>
+    <tr>
+      <td>12-08-2026</td>
+      <td>COMPRA 1653 CONTINENTE COIMBRA</td>
+      <td>-59,24</td>
+      <td>1.446,46</td>
+    </tr>
+    <tr>
+      <td>14-08-2026</td>
+      <td>COMPRA 3088 CONTINENTE COIMBRA</td>
+      <td>-10,38</td>
+      <td>1.436,08</td>
+    </tr>
+    <tr>
+      <td>15-08-2026</td>
+      <td>OPENAI *CHATGPT SUBSCR SAN FRANCISCO</td>
+      <td>-23,00</td>
+      <td>1.413,08</td>
+    </tr>
+    <tr>
+      <td>20-08-2026</td>
+      <td>DD MEO SA ENT 12345 REF 996139578</td>
+      <td>-45,00</td>
+      <td>1.368,08</td>
+    </tr>
+    <tr>
+      <td>22-08-2026</td>
+      <td>DD EDP COMERCIAL REF 693269304</td>
+      <td>-42,95</td>
+      <td>1.325,13</td>
+    </tr>
+    <tr>
+      <td>24-08-2026</td>
+      <td>COMPRA 3532 CAFE SANTA CRUZ</td>
+      <td>-6,08</td>
+      <td>1.319,05</td>
+    </tr>
+    <tr>
+      <td>25-08-2026</td>
+      <td>COMPRA 7658 CAFE SANTA CRUZ</td>
+      <td>-6,35</td>
+      <td>1.312,70</td>
+    </tr>
+    <tr>
+      <td>26-08-2026</td>
+      <td>COMPRA 3900 CAFE SANTA CRUZ</td>
+      <td>-5,82</td>
+      <td>1.306,88</td>
+    </tr>
+    <tr>
+      <td>01-09-2026</td>
+      <td>TRF MESADA FAMILIA</td>
+      <td>400,00</td>
+      <td>1.706,88</td>
+    </tr>
+    <tr>
+      <td>01-09-2026</td>
+      <td>COMPRA 2889 CAFE SANTA CRUZ</td>
+      <td>-5,80</td>
+      <td>1.701,08</td>
+    </tr>
+    <tr>
+      <td>01-09-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-9,20</td>
+      <td>1.691,88</td>
+    </tr>
+    <tr>
+      <td>02-09-2026</td>
+      <td>TRF RENDA QUARTO REF 501124</td>
+      <td>-280,00</td>
+      <td>1.411,88</td>
+    </tr>
+    <tr>
+      <td>03-09-2026</td>
+      <td>COMPRA 5573 CONTINENTE COIMBRA</td>
+      <td>-28,02</td>
+      <td>1.383,86</td>
+    </tr>
+    <tr>
+      <td>03-09-2026</td>
+      <td>DD FITNESS HUT COIMBRA REF 314289692</td>
+      <td>-29,99</td>
+      <td>1.353,87</td>
+    </tr>
+    <tr>
+      <td>05-09-2026</td>
+      <td>COMPRA 1634 NETFLIX.COM AMSTERDAM</td>
+      <td>-9,99</td>
+      <td>1.343,88</td>
+    </tr>
+    <tr>
+      <td>08-09-2026</td>
+      <td>COMPRA 1387 CONTINENTE COIMBRA</td>
+      <td>-45,62</td>
+      <td>1.298,26</td>
+    </tr>
+    <tr>
+      <td>08-09-2026</td>
+      <td>COMPRA 8711 SPOTIFY P338836384 STOCKHOLM</td>
+      <td>-4,99</td>
+      <td>1.293,27</td>
+    </tr>
+    <tr>
+      <td>09-09-2026</td>
+      <td>COMPRA 3925 CAFE SANTA CRUZ</td>
+      <td>-4,11</td>
+      <td>1.289,16</td>
+    </tr>
+    <tr>
+      <td>09-09-2026</td>
+      <td>COMPRA 1626 CAFE SANTA CRUZ</td>
+      <td>-1,42</td>
+      <td>1.287,74</td>
+    </tr>
+    <tr>
+      <td>10-09-2026</td>
+      <td>COMPRA 6000 SPOTIFY P981044229 STOCKHOLM</td>
+      <td>-4,99</td>
+      <td>1.282,75</td>
+    </tr>
+    <tr>
+      <td>11-09-2026</td>
+      <td>COMPRA 8149 CAFE SANTA CRUZ</td>
+      <td>-4,26</td>
+      <td>1.278,49</td>
+    </tr>
+    <tr>
+      <td>12-09-2026</td>
+      <td>APPLE.COM/BILL ITUNES.COM</td>
+      <td>-0,99</td>
+      <td>1.277,50</td>
+    </tr>
+    <tr>
+      <td>13-09-2026</td>
+      <td>COMPRA 6378 CONTINENTE COIMBRA</td>
+      <td>-23,88</td>
+      <td>1.253,62</td>
+    </tr>
+    <tr>
+      <td>13-09-2026</td>
+      <td>COMPRA 9785 CAFE SANTA CRUZ</td>
+      <td>-2,69</td>
+      <td>1.250,93</td>
+    </tr>
+    <tr>
+      <td>14-09-2026</td>
+      <td>COMPRA 6663 CAFE SANTA CRUZ</td>
+      <td>-4,95</td>
+      <td>1.245,98</td>
+    </tr>
+    <tr>
+      <td>15-09-2026</td>
+      <td>OPENAI *CHATGPT SUBSCR SAN FRANCISCO</td>
+      <td>-23,00</td>
+      <td>1.222,98</td>
+    </tr>
+    <tr>
+      <td>17-09-2026</td>
+      <td>COMPRA 2894 CAFE SANTA CRUZ</td>
+      <td>-3,00</td>
+      <td>1.219,98</td>
+    </tr>
+    <tr>
+      <td>18-09-2026</td>
+      <td>DD FIDELIDADE SEGUROS APOLICE</td>
+      <td>-84,50</td>
+      <td>1.135,48</td>
+    </tr>
+    <tr>
+      <td>19-09-2026</td>
+      <td>COMPRA 4114 CAFE SANTA CRUZ</td>
+      <td>-2,25</td>
+      <td>1.133,23</td>
+    </tr>
+    <tr>
+      <td>20-09-2026</td>
+      <td>DD MEO SA ENT 12345 REF 976803188</td>
+      <td>-45,00</td>
+      <td>1.088,23</td>
+    </tr>
+    <tr>
+      <td>22-09-2026</td>
+      <td>DD EDP COMERCIAL REF 475442872</td>
+      <td>-50,35</td>
+      <td>1.037,88</td>
+    </tr>
+    <tr>
+      <td>24-09-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-13,40</td>
+      <td>1.024,48</td>
+    </tr>
+    <tr>
+      <td>26-09-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-9,38</td>
+      <td>1.015,10</td>
+    </tr>
+    <tr>
+      <td>01-10-2026</td>
+      <td>TRF MESADA FAMILIA</td>
+      <td>400,00</td>
+      <td>1.415,10</td>
+    </tr>
+    <tr>
+      <td>02-10-2026</td>
+      <td>TRF RENDA QUARTO REF 306606</td>
+      <td>-280,00</td>
+      <td>1.135,10</td>
+    </tr>
+    <tr>
+      <td>03-10-2026</td>
+      <td>DD FITNESS HUT COIMBRA REF 813219781</td>
+      <td>-29,99</td>
+      <td>1.105,11</td>
+    </tr>
+    <tr>
+      <td>05-10-2026</td>
+      <td>COMPRA 6967 NETFLIX.COM AMSTERDAM</td>
+      <td>-9,99</td>
+      <td>1.095,12</td>
+    </tr>
+    <tr>
+      <td>06-10-2026</td>
+      <td>COMPRA 5930 CAFE SANTA CRUZ</td>
+      <td>-3,11</td>
+      <td>1.092,01</td>
+    </tr>
+    <tr>
+      <td>07-10-2026</td>
+      <td>COMPRA 8043 CAFE SANTA CRUZ</td>
+      <td>-5,28</td>
+      <td>1.086,73</td>
+    </tr>
+    <tr>
+      <td>08-10-2026</td>
+      <td>COMPRA 8066 SPOTIFY P175133802 STOCKHOLM</td>
+      <td>-4,99</td>
+      <td>1.081,74</td>
+    </tr>
+    <tr>
+      <td>12-10-2026</td>
+      <td>APPLE.COM/BILL ITUNES.COM</td>
+      <td>-0,99</td>
+      <td>1.080,75</td>
+    </tr>
+    <tr>
+      <td>14-10-2026</td>
+      <td>COMPRA 7211 CAFE SANTA CRUZ</td>
+      <td>-4,66</td>
+      <td>1.076,09</td>
+    </tr>
+    <tr>
+      <td>15-10-2026</td>
+      <td>OPENAI *CHATGPT SUBSCR SAN FRANCISCO</td>
+      <td>-23,00</td>
+      <td>1.053,09</td>
+    </tr>
+    <tr>
+      <td>16-10-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-11,94</td>
+      <td>1.041,15</td>
+    </tr>
+    <tr>
+      <td>20-10-2026</td>
+      <td>DD MEO SA ENT 12345 REF 454549587</td>
+      <td>-45,00</td>
+      <td>996,15</td>
+    </tr>
+    <tr>
+      <td>20-10-2026</td>
+      <td>COMPRA 6279 CAFE SANTA CRUZ</td>
+      <td>-3,45</td>
+      <td>992,70</td>
+    </tr>
+    <tr>
+      <td>22-10-2026</td>
+      <td>DD EDP COMERCIAL REF 812306873</td>
+      <td>-50,99</td>
+      <td>941,71</td>
+    </tr>
+    <tr>
+      <td>22-10-2026</td>
+      <td>COMPRA 7691 CONTINENTE COIMBRA</td>
+      <td>-26,59</td>
+      <td>915,12</td>
+    </tr>
+    <tr>
+      <td>22-10-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-6,14</td>
+      <td>908,98</td>
+    </tr>
+    <tr>
+      <td>23-10-2026</td>
+      <td>COMPRA 5844 CONTINENTE COIMBRA</td>
+      <td>-39,60</td>
+      <td>869,38</td>
+    </tr>
+    <tr>
+      <td>24-10-2026</td>
+      <td>COMPRA 5920 CONTINENTE COIMBRA</td>
+      <td>-36,91</td>
+      <td>832,47</td>
+    </tr>
+    <tr>
+      <td>26-10-2026</td>
+      <td>COMPRA UBER *TRIP HELP.UBER.COM</td>
+      <td>-11,36</td>
+      <td>821,11</td>
+    </tr>
+    <tr>
+      <td>27-10-2026</td>
+      <td>COMPRA 1006 CAFE SANTA CRUZ</td>
+      <td>-2,53</td>
+      <td>818,58</td>
+    </tr>
+  </tbody>
+</table></body></html>

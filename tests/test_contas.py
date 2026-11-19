@@ -215,3 +215,85 @@ def test_debito_direto_estilo_novo_banco_e_detetado():
     r = detetar_recorrentes(normalizar_extrato(df))
     assert r["comerciante"].tolist() == ["Xpto Fitness"]
     assert r.iloc[0]["custo_mensal"] == 7.98
+
+
+def test_subscricao_escondida_entre_compras_do_mesmo_comerciante():
+    # iCloud 0,99 € todos os meses + apps compradas na mesma "APPLE.COM/BILL"
+    datas_icloud = pd.to_datetime(["2026-07-09", "2026-08-09", "2026-09-09", "2026-10-09"])
+    compras = pd.to_datetime(["2026-07-21", "2026-08-02", "2026-09-27"])
+    df = pd.DataFrame({
+        "data": list(datas_icloud) + list(compras),
+        "descricao": ["APPLE.COM/BILL"] * 7,
+        "valor": [-0.99] * 4 + [-12.99, -4.49, -16.99],
+    })
+    r = detetar_recorrentes(df)
+    assert len(r) == 1
+    assert r.iloc[0]["comerciante"].startswith("Apple")
+    assert r.iloc[0]["valor_tipico"] == 0.99
+
+
+def test_periodo_experimental():
+    from contas.recorrentes import possiveis_subscricoes
+    df = pd.DataFrame({"data": pd.to_datetime(["2026-11-05"]), "descricao": ["MICROSOFT*365"], "valor": [-1.0]})
+    assert "experimental" in possiveis_subscricoes(df).iloc[0]["nota"]
+
+
+def test_transferencias_redondas_para_pessoas_nao_sao_subscricao():
+    # Pagamentos de 20 € a pessoas diferentes pela mesma app, quase todas as semanas
+    datas = pd.date_range("2026-07-04", periods=16, freq="7D")
+    df = pd.DataFrame({
+        "data": list(datas) + [datas[5], datas[9]],
+        "descricao": ["PAG APP TERCEIROS"] * 18,
+        "valor": [-20.0] * 16 + [-35.0, -7.5],
+    })
+    df.loc[[3, 8], "valor"] = -12.0
+    assert detetar_recorrentes(df).empty
+
+
+# --- Revolut -----------------------------------------------------------------
+
+REVOLUT_EN = """Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+CARD_PAYMENT,Current,2026-10-05 14:22:11,2026-10-06 09:01:02,Netflix,-9.99,0.00,EUR,COMPLETED,120.01
+CARD_PAYMENT,Current,2026-11-05 14:22:11,2026-11-06 09:01:02,Netflix,-9.99,0.00,EUR,COMPLETED,110.02
+CARD_PAYMENT,Current,2026-11-07 10:00:00,,Pingo Doce,-15.00,0.00,EUR,REVERTED,
+TOPUP,Current,2026-11-08 10:00:00,2026-11-08 10:00:01,Top-up by *1234,50.00,0.00,EUR,COMPLETED,160.02
+"""
+
+REVOLUT_PT = """Tipo,Produto,Data de início,Data de conclusão,Descrição,Montante,Comissão,Moeda,Estado,Saldo
+Pagamento com cartão,Atual,2026-10-05 14:22:11,2026-10-06 09:01:02,Spotify,-6.99,0.00,EUR,CONCLUÍDA,120.01
+Pagamento com cartão,Atual,2026-11-05 14:22:11,2026-11-06 09:01:02,Spotify,-6.99,0.00,EUR,CONCLUÍDA,113.02
+Pagamento com cartão,Atual,2026-11-07 10:00:00,,Mercadona,-15.00,0.00,EUR,REVERTIDA,
+"""
+
+
+@pytest.mark.parametrize("csv, descricao", [(REVOLUT_EN, "Netflix"), (REVOLUT_PT, "Spotify")])
+def test_revolut(csv, descricao):
+    df = carregar_extrato(csv.encode())
+    assert df["data"].dt.strftime("%Y-%m-%d").tolist()[:2] == ["2026-10-05", "2026-11-05"]
+    assert "Pingo Doce" not in df["descricao"].tolist() and "Mercadona" not in df["descricao"].tolist()
+    assert df[df["descricao"] == descricao]["valor"].tolist() == [df.iloc[0]["valor"]] * 2
+    assert descricao in detetar_recorrentes(df)["comerciante"].tolist()
+
+
+REVOLUT_EXTRATO_PT = """Contas-correntes Resumos,,,,
+Produto,Saldo inicial,Dinheiro retirado,Dinheiro recebido,Saldo final
+Conta (Atual),"100,00 €","40,98 €","50,00 €","109,02 €"
+,,,,
+Transações da conta de 1 de outubro de 2026 a 30 de novembro de 2026,,,,
+Data,Descrição,Dinheiro retirado,Dinheiro recebido,Saldo
+05/10/2026,Netflix,"9,99 €",,"90,01 €"
+08/10/2026,Carregamento de *1234,,"50,00 €","140,01 €"
+05/11/2026,Netflix,"9,99 €",,"130,02 €"
+,,,,
+Transações da conta Cripto,,,,
+Data,Descrição,Dinheiro retirado,Dinheiro recebido,Saldo
+12/10/2026,Compra de BTC,"21,00 €",,"109,02 €"
+"""
+
+
+def test_revolut_extrato_com_seccoes():
+    df = carregar_extrato(REVOLUT_EXTRATO_PT.encode())
+    assert len(df) == 4  # 3 da conta + 1 de cripto; o resumo fica de fora
+    assert df["valor"].sum() == pytest.approx(-9.99 + 50 - 9.99 - 21)
+    assert df["data"].min() == pd.Timestamp("2026-10-05")
+    assert "Netflix" in detetar_recorrentes(df)["comerciante"].tolist()
