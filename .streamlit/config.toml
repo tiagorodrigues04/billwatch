@@ -1,0 +1,41 @@
+# Tema do BillWatch — "o talão": papel, tinta, marcador e caneta vermelha.
+# As cores e as fontes estão também em ui/estilo.py (para o CSS do talão).
+
+[server]
+enableStaticServing = true          # para servir as fontes em static/fontes
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#1B2B44"            # tinta
+backgroundColor = "#EEF2F5"         # papel de extrato
+secondaryBackgroundColor = "#E3E9F0"
+textColor = "#1B2B44"
+linkColor = "#1B2B44"
+borderColor = "#CBD4DF"
+showWidgetBorder = true
+baseRadius = "6px"
+buttonRadius = "6px"
+font = "Schibsted Grotesk, sans-serif"
+headingFont = "Schibsted Grotesk, sans-serif"
+codeFont = "IBM Plex Mono, monospace"
+headingFontWeights = [800, 700, 700, 600, 600, 600]
+headingFontSizes = ["2.6rem", "1.45rem", "1.15rem", "1rem", "1rem", "1rem"]
+chartCategoricalColors = ["#1B2B44", "#5B6B82", "#9AA7B8", "#C62D2D", "#E0B400"]
+
+[[theme.fontFaces]]
+family = "Schibsted Grotesk"
+url = "app/static/fontes/schibsted-grotesk-latin-wght-normal.woff2"
+weight = "400 900"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fontes/ibm-plex-mono-latin-400-normal.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fontes/ibm-plex-mono-latin-500-normal.woff2"
+weight = 500
