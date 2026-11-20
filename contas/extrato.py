@@ -488,6 +488,14 @@ def e_debito_direto(descricao: str) -> bool:
     return bool(_DEBITO_DIRETO.search(sem_acentos(corrigir_texto_pdf(descricao)).upper()))
 
 
+_PARA_PESSOA = re.compile(r"\b(MB ?WAY|MBWAY)\b.*(\b(PARA|TO)\b|\bP/)|\bTRF\b.*\bPARA\b")
+
+
+def e_transferencia_para_pessoa(descricao: str) -> bool:
+    """'MB WAY PARA RITA COSTA', 'TRF MB WAY P/ 912...', 'TRF PARA JOAO': dinheiro enviado a alguém."""
+    return bool(_PARA_PESSOA.search(sem_acentos(corrigir_texto_pdf(str(descricao))).upper()))
+
+
 def _tokens(texto: str) -> list[str]:
     texto = sem_acentos(corrigir_texto_pdf(texto)).upper()
     texto = re.sub(r"[^A-Z0-9 ]", " ", texto)       # pontuação fora

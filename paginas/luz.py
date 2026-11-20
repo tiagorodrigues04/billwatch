@@ -14,6 +14,13 @@ cabecalho("A tua luz está cara?",
           "Carrega a fatura da luz em PDF ou escreve os valores à mão. O BillWatch calcula quanto pagarias "
           "com outras ofertas, para o mesmo consumo.")
 
+_base = ofertas_base()
+if "fonte" in _base and _base["fonte"].astype(str).str.contains("EXEMPLO", case=False).any():
+    st.warning("**Demonstração.** As ofertas desta página são de comercializadoras fictícias, com preços "
+               "inventados: servem para mostrar como funciona a comparação. A leitura da fatura e as contas são "
+               "reais. Para comparar com preços atuais, carrega uma tabela de ofertas em *Usar a minha tabela de "
+               "ofertas*, ou usa o simulador da ERSE.", icon=":material/science:")
+
 for chave, padrao in {"consumo": None, "dias": 30, "potencia": 4.6, "preco_kwh": None, "termo_fixo": None}.items():
     st.session_state.setdefault(chave, padrao)
 

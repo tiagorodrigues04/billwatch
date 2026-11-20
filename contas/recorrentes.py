@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .catalogo import CATEGORIAS_POUPANCA, CATEGORIAS_VARIAVEIS, identificar
-from .extrato import chave_comerciante, e_debito_direto
+from .extrato import chave_comerciante, e_debito_direto, e_transferencia_para_pessoa
 
 # nome, intervalo típico em dias, tolerância em dias, pagamentos por ano
 PERIODICIDADES = [
@@ -42,6 +42,7 @@ class Parametros:
     regularidade_minima: float = 0.7        # % de intervalos dentro da tolerância
     variacao_maxima_valor: float = 0.15     # coeficiente de variação máximo (valor fixo)
     aumento_alerta: float = 0.05            # subida de preço que gera alerta (5%)
+    extra_para_pessoa: int = 1              # MB WAY para uma pessoa precisa de mais 1 pagamento
 
 
 def _classificar_intervalo(intervalos: np.ndarray, p: Parametros):
@@ -54,6 +55,36 @@ def _classificar_intervalo(intervalos: np.ndarray, p: Parametros):
             if regularidade >= p.regularidade_minima:
                 return (nome, dias, por_ano), regularidade
     return None, 0.0
+
+
+def _subida_de_preco(valores: np.ndarray, aumento_minimo: float, ruido: float = 0.05):
+    """Procura a subida de preço mais recente: devolve (índice, preço antigo, preço novo) ou None.
+
+    Divide os pagamentos em "antes" e "depois" em cada ponto possível, do mais recente para
+    trás, e para no primeiro ponto em que os dois lados são estáveis (variam menos de 5%, o
+    que tolera o câmbio de serviços cobrados em dólares) e têm preços diferentes.
+    Compara medianas, por isso um mês com um valor estranho não cria um alerta falso.
+    """
+    for i in range(len(valores) - 1, 0, -1):
+        antes, depois = valores[:i][-6:], valores[i:]
+        m_antes, m_depois = float(np.median(antes)), float(np.median(depois))
+        # Com um só pagamento no preço novo, o antigo tem de ser fixo ao cêntimo (1%):
+        # senão a oscilação do câmbio passava por uma subida.
+        tolerancia_antes = ruido if len(depois) >= 2 else 0.01
+        estaveis = (np.abs(antes - m_antes) <= tolerancia_antes * m_antes).all() and \
+                   (np.abs(depois - m_depois) <= ruido * m_depois).all()
+        if not estaveis:
+            continue
+        # Preços fixos ao cêntimo: basta subir 5%. Preços que oscilam (câmbio): tem de subir 10%.
+        fixos = (np.abs(antes - m_antes) <= 0.01 * m_antes).all() and \
+                (np.abs(depois - m_depois) <= 0.01 * m_depois).all()
+        minimo = aumento_minimo if fixos else max(aumento_minimo, 0.10)
+        if m_antes * (1 + minimo) < m_depois <= m_antes * 1.6:
+            return i, m_antes, m_depois
+        if abs(m_depois - m_antes) > ruido * m_antes:
+            return None   # a mudança mais recente não é uma subida (desceu, ou subiu demais)
+        # mesmo preço dos dois lados: a mudança, se houver, está mais para trás
+    return None
 
 
 def preparar(extrato: pd.DataFrame) -> pd.DataFrame:
@@ -74,6 +105,8 @@ def preparar(extrato: pd.DataFrame) -> pd.DataFrame:
     # Um débito direto (SDD) é quase sempre uma conta fixa: precisa de menos provas,
     # tal como um comerciante do catálogo.
     saidas["confiavel"] = saidas["conhecido"] | saidas["debito_direto"]
+    # MB WAY para amigos com valores redondos (10 €, 20 €) repetem-se por acaso.
+    saidas["para_pessoa"] = ~saidas["confiavel"] & saidas["descricao"].map(e_transferencia_para_pessoa)
     return saidas
 
 
@@ -90,6 +123,8 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         """Decide se um grupo de pagamentos é recorrente; devolve a linha do resultado ou None."""
         conhecido = bool(grupo["confiavel"].iloc[0])
         minimo = p.min_pagamentos_conhecido if conhecido else p.min_pagamentos
+        if bool(grupo["para_pessoa"].all()):
+            minimo += p.extra_para_pessoa
         # Vários pagamentos no mesmo dia (ex.: duas compras na mesma loja) contam como um.
         por_dia = grupo.groupby(grupo["data"].dt.normalize())["montante"].sum().sort_index()
         if len(por_dia) < minimo:
@@ -118,11 +153,14 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
         valor_variavel = categoria in CATEGORIAS_VARIAVEIS
         if not valor_variavel and variacao > p.variacao_maxima_valor:
             # Valores muito diferentes = provavelmente compras normais (supermercado, café...).
-            # Exceção: subida de preço — os valores antigos são estáveis e os últimos também.
+            # Exceção: subida de preço — os valores antigos são estáveis e o último é MAIOR.
+            # Com poucos pagamentos, dois valores parecidos acontecem por acaso (viagens de Uber),
+            # por isso um desconhecido precisa de pelo menos 3 valores antigos estáveis.
             antigos = valores[:-1]
             antigos_estaveis = np.std(antigos) / np.median(antigos) <= p.variacao_maxima_valor
-            salto_plausivel = valores[-1] <= np.median(antigos) * 1.6  # subidas de preço reais raramente passam de +60%
-            if not (antigos_estaveis and salto_plausivel):
+            provas = conhecido or len(antigos) >= 3
+            salto_plausivel = np.median(antigos) < valores[-1] <= np.median(antigos) * 1.6  # raramente passa de +60%
+            if not (antigos_estaveis and provas and salto_plausivel):
                 return None
 
         ultimo_valor = float(valores[-1])
@@ -132,18 +170,13 @@ def detetar_recorrentes(extrato: pd.DataFrame, parametros: Parametros | None = N
 
         alertas = []
         if not valor_variavel:
-            # Anda para trás enquanto o valor for igual ao atual: o valor antes disso é o preço antigo.
-            i = len(valores) - 1
-            while i > 0 and abs(valores[i - 1] - ultimo_valor) <= 0.01 * ultimo_valor:
-                i -= 1
-            if i > 0:
-                antigo = float(valores[i - 1])
-                if antigo * (1 + p.aumento_alerta) < ultimo_valor <= antigo * 1.6:
-                    subida = (ultimo_valor / antigo - 1) * 100
-                    quando = datas[i].strftime("%m/%Y")
-                    alertas.append(
-                        f"Preço subiu {subida:.0f}% em {quando} ({euro(antigo)} → {euro(ultimo_valor)})"
-                    )
+            subida_preco = _subida_de_preco(valores, p.aumento_alerta)
+            if subida_preco is not None:
+                i, antigo, novo = subida_preco
+                subida = (novo / antigo - 1) * 100
+                alertas.append(
+                    f"Preço subiu {subida:.0f}% em {datas[i].strftime('%m/%Y')} ({euro(antigo)} → {euro(novo)})"
+                )
         ativa = dias_desde_ultimo <= dias_periodo * 1.5
         if not ativa:
             alertas.append("Sem pagamentos recentes — talvez já esteja cancelada")
