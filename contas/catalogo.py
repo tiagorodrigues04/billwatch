@@ -1,12 +1,14 @@
 """Catálogo de comerciantes conhecidos em Portugal.
 
 Cada entrada: palavra-chave a procurar na descrição -> (nome bonito, categoria).
-A ordem importa: entradas mais específicas primeiro (ex.: "YOUTUBE" antes de "GOOGLE").
+As palavras-chave contam como palavras inteiras e a mais comprida ganha, por isso a ordem
+da lista não importa ("GALP ENERGIA" ganha a "GALP", "MEO ENERGIA" ganha a "MEO").
 Acrescenta aqui os comerciantes que te aparecerem nos testes com colegas.
 """
 
 from __future__ import annotations
 
+import re
 import unicodedata
 
 CATALOGO: list[tuple[str, str, str]] = [
@@ -24,13 +26,14 @@ CATALOGO: list[tuple[str, str, str]] = [
     ("DAZN", "DAZN", "Streaming"),
     ("SPORT TV", "Sport TV", "Streaming"),
     ("SPORTTV", "Sport TV", "Streaming"),
-    ("ELEVEN", "Eleven", "Streaming"),
+    ("ELEVEN SPORTS", "Eleven", "Streaming"),
+    ("ELEVENSPORTS", "Eleven", "Streaming"),
     ("TWITCH", "Twitch", "Streaming"),
     ("DEEZER", "Deezer", "Streaming"),
     ("APPLE.COM", "Apple (iCloud/App Store)", "Software e nuvem"),
     ("ICLOUD", "iCloud", "Software e nuvem"),
     ("GOOGLE ONE", "Google One", "Software e nuvem"),
-    ("GOOGLE", "Google", "Software e nuvem"),
+    ("GOOGLE STORAGE", "Google One", "Software e nuvem"),
     ("MICROSOFT", "Microsoft 365", "Software e nuvem"),
     ("ADOBE", "Adobe", "Software e nuvem"),
     ("OPENAI", "ChatGPT", "Software e nuvem"),
@@ -43,7 +46,6 @@ CATALOGO: list[tuple[str, str, str]] = [
     ("PLAYSTATION", "PlayStation Plus", "Jogos"),
     ("SONY INTERACTIVE", "PlayStation Plus", "Jogos"),
     ("XBOX", "Xbox Game Pass", "Jogos"),
-    ("STEAM", "Steam", "Jogos"),
     ("NINTENDO", "Nintendo", "Jogos"),
     # Telecomunicações
     ("MEO", "MEO", "Telecomunicações"),
@@ -57,15 +59,24 @@ CATALOGO: list[tuple[str, str, str]] = [
     # Energia e água
     ("EDP", "EDP", "Energia"),
     ("ENDESA", "Endesa", "Energia"),
-    ("GALP", "Galp", "Energia"),
+    ("GALP ENERGIA", "Galp", "Energia"),
+    ("GALP POWER", "Galp", "Energia"),
+    ("GALP GAS", "Galp", "Energia"),
     ("GOLDENERGY", "Goldenergy", "Energia"),
     ("IBERDROLA", "Iberdrola", "Energia"),
     ("PLENITUDE", "Plenitude", "Energia"),
-    ("REPSOL", "Repsol", "Energia"),
+    ("REPSOL ELECTRICIDAD", "Repsol", "Energia"),
+    ("REPSOL ELETRICIDADE", "Repsol", "Energia"),
+    ("REPSOL LUZ", "Repsol", "Energia"),
+    ("REPSOL ENERGIA", "Repsol", "Energia"),
     ("MEO ENERGIA", "MEO Energia", "Energia"),
     ("SU ELETRICIDADE", "SU Eletricidade", "Energia"),
     ("COOPERNICO", "Coopérnico", "Energia"),
-    ("AGUAS", "Água", "Energia"),
+    ("AGUAS DO", "Água", "Energia"),
+    ("AGUAS DE", "Água", "Energia"),
+    ("AGUAS DA", "Água", "Energia"),
+    ("EPAL", "Água (EPAL)", "Energia"),
+    ("INDAQUA", "Água (Indaqua)", "Energia"),
     ("SMAS", "Água (SMAS)", "Energia"),
     # Ginásios
     ("FITNESS HUT", "Fitness Hut", "Ginásio"),
@@ -129,22 +140,62 @@ CATEGORIAS_VARIAVEIS = {"Energia"}
 CATEGORIAS_POUPANCA = {"Poupança e investimento"}
 
 
+# Nomes que contêm uma palavra-chave do catálogo mas NÃO são contas fixas.
+# Ganham ao catálogo porque são mais compridos (procura-se sempre a chave mais longa primeiro).
+# Se o pagamento for um débito direto, usa-se o valor do dicionário (a Galp não cobra
+# combustível por débito direto, por isso um "SDD GALP" é a conta da luz/gás).
+NAO_SUBSCRICAO: dict[str, tuple[str, str] | None] = {
+    "GALP": ("Galp", "Energia"),      # abastecer combustível (a luz vem como "GALP ENERGIA"/"GALP POWER")
+    "REPSOL": ("Repsol", "Energia"),  # idem
+    "GYM SHARK": None, "GYMSHARK": None,   # loja de roupa desportiva, não é ginásio
+    "DISNEYLAND": None, "DISNEY STORE": None,
+    "GOOGLE PLAY": None,  # compras de apps e jogos (subscrições vêm como GOOGLE *YOUTUBE, GOOGLE ONE...)
+}
+_DEBITO_DIRETO = re.compile(r" (SDD|DD|DEB DIRE?C?TO|DEBITO DIRE?C?TO|COBRANCA|DIRECT DEBIT) ")
+
+# Palavras genéricas que, numa transferência para uma pessoa (MB WAY, "TRF PARA ..."),
+# podem ser o apelido de alguém: "MB WAY PARA JOAO SEGURO" não é um seguro.
+GENERICAS = {"SEGURO", "RENDA", "CONDOMINIO", "PROPINA", "GINASIO", "GYM", "POUPANCA", "COFRE"}
+_TRANSFERENCIA_PESSOA = re.compile(r" (MB ?WAY|MBWAY|PARA|P) ")
+
+# Chaves com 6+ letras podem ser o início de uma palavra ("YOUTUBE" em "YOUTUBEPREMIUM");
+# as mais curtas têm de ser a palavra inteira ("MEO" não conta em "HOMEOPATIA").
+_MIN_PREFIXO = 6
+
+
 def _limpar(texto: str) -> str:
-    texto = unicodedata.normalize("NFKD", texto)
+    """Maiúsculas, sem acentos, pontuação vira espaço: ' NETFLIX COM 866 579 '."""
+    texto = unicodedata.normalize("NFKD", str(texto))
     texto = "".join(c for c in texto if not unicodedata.combining(c)).upper()
-    return " " + " ".join(texto.replace("!", " ").split()) + " "
+    return " " + " ".join(re.sub(r"[^A-Z0-9]+", " ", texto).split()) + " "
+
+
+def _entradas():
+    entradas = [(_limpar(chave).strip(), nome, categoria) for chave, nome, categoria in CATALOGO]
+    entradas += [(_limpar(chave).strip(), None, se_dd) for chave, se_dd in NAO_SUBSCRICAO.items()]
+    # Procura primeiro as palavras-chave mais compridas (mais específicas).
+    return sorted(entradas, key=lambda e: -len(e[0]))
+
+
+_ENTRADAS = _entradas()
+
+
+def _aparece(chave: str, texto: str) -> bool:
+    if f" {chave} " in texto:
+        return True
+    return len(chave) >= _MIN_PREFIXO and " " not in chave and f" {chave}" in texto
 
 
 def identificar(descricao: str) -> tuple[str, str] | None:
     """Devolve (nome, categoria) se a descrição corresponder a um comerciante conhecido."""
     texto = _limpar(descricao)
-    # Procura primeiro as palavras-chave mais compridas (mais específicas).
-    for chave, nome, categoria in sorted(CATALOGO, key=lambda e: -len(e[0])):
-        alvo = chave.upper()
-        # Palavras-chave curtas (MEO, NOS, EDP...) têm de aparecer como palavra inteira.
-        if len(alvo.strip()) <= 4:
-            if f" {alvo.strip()} " in texto.replace(".", " ").replace("*", " "):
+    para_pessoa = bool(_TRANSFERENCIA_PESSOA.search(texto))
+    for chave, nome, categoria in _ENTRADAS:
+        if para_pessoa and chave in GENERICAS:
+            continue
+        if _aparece(chave, texto):
+            if nome:
                 return nome, categoria
-        elif alvo in texto:
-            return nome, categoria
+            # Entrada de NAO_SUBSCRICAO: só conta se for um débito direto e houver alternativa.
+            return categoria if categoria and _DEBITO_DIRETO.search(texto) else None
     return None

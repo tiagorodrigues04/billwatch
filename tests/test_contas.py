@@ -46,6 +46,44 @@ def test_catalogo():
     assert identificar("COMPRA HOMEOPATIA") is None  # "MEO" dentro de outra palavra não conta
 
 
+@pytest.mark.parametrize("descricao, esperado", [
+    ("DD GALP ENERGIA SA", ("Galp", "Energia")),
+    ("SDD GALP 123456", ("Galp", "Energia")),          # débito direto da Galp = conta da luz/gás
+    ("DD AGUAS DO PORTO EM", ("Água", "Energia")),
+    ("MEO ENERGIA", ("MEO Energia", "Energia")),        # a chave mais comprida ganha
+    ("APPLE.COM/BILL", ("Apple (iCloud/App Store)", "Software e nuvem")),
+    ("PAYPAL *SPOTIFYAB", ("Spotify", "Streaming")),
+    ("Pagamento OK! Teleseguros", ("OK! Teleseguros", "Seguros")),
+    ("COMPRA CROSSFIT GYM COIMBRA", ("Ginásio", "Ginásio")),
+    ("TRF RENDA QUARTO REF 770487", ("Renda", "Casa")),
+])
+def test_catalogo_reconhece(descricao, esperado):
+    assert identificar(descricao) == esperado
+
+
+@pytest.mark.parametrize("descricao", [
+    "COMPRA 1234 GALP OLIVAIS LISBOA",   # combustível, não é a conta da luz
+    "COMPRA REPSOL A1 KM 20",
+    "GOOGLE PLAY APPS",                  # compra de uma app
+    "STEAM PURCHASE",                    # compra de um jogo
+    "COMPRA GYM SHARK STORE",            # loja de roupa, não é ginásio
+    "COMPRA DISNEYLAND PARIS",
+    "RESTAURANTE AGUAS FURTADAS",
+    "COMPRA LOJA DAS PRENDAS",           # "RENDA" dentro de outra palavra
+    "COMPRA 7-ELEVEN",
+    "MB WAY PARA JOAO SEGURO",           # apelido de uma pessoa, não é um seguro
+])
+def test_catalogo_nao_confunde(descricao):
+    assert identificar(descricao) is None
+
+
+def test_combustivel_na_galp_nao_e_conta_fixa():
+    datas = pd.date_range("2026-01-03", periods=10, freq="30D")
+    valores = [-31.2, -48.9, -40.0, -52.3, -35.7, -44.1, -38.8, -50.5, -33.0, -46.2]
+    extrato = pd.DataFrame({"data": datas, "descricao": "COMPRA 1234 GALP OLIVAIS", "valor": valores})
+    assert detetar_recorrentes(extrato).empty
+
+
 # --- recorrentes -------------------------------------------------------------
 
 @pytest.fixture(scope="module")

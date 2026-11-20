@@ -168,7 +168,11 @@ if extrato is not None and not extrato.empty:
             )
             escolhido = st.selectbox("Ver os movimentos de", tabela["comerciante"].unique().tolist())
             movimentos = preparar(extrato)
-            st.dataframe(movimentos[movimentos["comerciante"] == escolhido][["data", "descricao", "montante"]],
+            # Filtra também pela categoria: "Galp" (luz) e "Galp" (combustível) não se misturam.
+            categorias = tabela.loc[tabela["comerciante"] == escolhido, "categoria"].unique()
+            do_escolhido = movimentos[(movimentos["comerciante"] == escolhido)
+                                      & movimentos["categoria"].isin(categorias)]
+            st.dataframe(do_escolhido[["data", "descricao", "montante"]],
                          hide_index=True, width="stretch",
                          column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                         "descricao": "Descrição",
