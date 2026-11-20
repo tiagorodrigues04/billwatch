@@ -11,6 +11,14 @@ Como se conta:
 - Precisão = acertos / linhas que a app mostrou   ("quando diz que é subscrição, acerta?")
 - Recall   = acertos / subscrições verdadeiras    ("das que existem, quantas encontra?")
 - Erro no custo = diferença média entre o "por mês" da app e o verdadeiro, nos acertos.
+
+Casos novos (ver avaliacao/gerar.py):
+- Movimentos entre contas tuas (carregar a Revolut, transferir para outra conta tua) que a app
+  mostra como custos. Com o nome do titular, como se a pessoa o tivesse escrito em "Contas tuas".
+- Pagamentos anuais que só aparecem uma vez: quantos vão para "A confirmar" (e, das linhas em
+  "A confirmar", quantas são mesmo pagamentos fixos: anuais ou subscrições que começaram agora).
+- Contas divididas: em quantas a app desconta as partes dos colegas, quantos descontos são
+  falsos (ex.: a mesada dos pais perto do dia da renda) e o erro no custo real (a tua parte).
 """
 
 from __future__ import annotations
@@ -22,8 +30,9 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from avaliacao.gerar import gerar_pessoa
-from contas.recorrentes import detetar_recorrentes, preparar
+from avaliacao.gerar import gerar_caso
+from contas.partilhas import aplicar_partilhas, detetar_partilhas
+from contas.recorrentes import detetar_recorrentes, possiveis_subscricoes, preparar
 
 _SUFIXO = re.compile(r" \((\d[\d ]*,\d{2}) €\)$")   # "Apple (0,99 €)" = subgrupo por valor
 
@@ -42,6 +51,17 @@ class Resultado:
     por_tipo: dict[str, Counter] = field(default_factory=lambda: {"catalogo": Counter(), "fora": Counter()})
     exemplos_fp: list[str] = field(default_factory=list)
     exemplos_fn: list[str] = field(default_factory=list)
+    # casos novos
+    entre_contas_como_custo: int = 0      # linhas de custo feitas de movimentos entre contas tuas
+    pessoas_com_entre_contas: int = 0
+    anuais: int = 0
+    anuais_a_confirmar: int = 0
+    linhas_a_confirmar: int = 0
+    linhas_a_confirmar_fixas: int = 0     # anuais ou subscrições novas (e não compras avulsas)
+    contas_divididas: int = 0
+    contas_divididas_descontadas: int = 0
+    descontos_falsos: int = 0             # desconto numa conta que ninguém divide
+    erros_custo_real: list[float] = field(default_factory=list)   # nas contas divididas
 
     @property
     def precisao(self) -> float:
@@ -69,23 +89,44 @@ def _movimentos_da_linha(preparados: pd.DataFrame, comerciante: str, categoria: 
     return mesma[(mesma["comerciante"] == base) & (mesma["montante"].round(2) == valor)]
 
 
-def avaliar(n: int = 300, semente: int = 0) -> Resultado:
+def avaliar(n: int = 300, semente: int = 0, com_nome: bool = True) -> Resultado:
     res = Resultado()
     for pessoa in range(n):
-        extrato, verdades = gerar_pessoa(pessoa, semente)
+        caso = gerar_caso(pessoa, semente)
+        extrato, verdades = caso.extrato, caso.verdades
+        nome = caso.titular if com_nome else None
+        movimentos = extrato[["data", "descricao", "valor"]]
         por_id = {v.id: v for v in verdades}
         encontradas: set[str] = set()
-        recorrentes = detetar_recorrentes(extrato[["data", "descricao", "valor"]])
-        preparados = preparar(extrato)   # mantém a coluna "rotulo"
+        recorrentes = detetar_recorrentes(movimentos, nome=nome)
+        preparados = preparar(extrato, nome)   # mantém a coluna "rotulo"
+        res.pessoas_com_entre_contas += int((extrato["rotulo"] == "#entre").any())
 
-        for linha in recorrentes.itertuples() if not recorrentes.empty else []:
+        # As linhas de custo do talão (poupança e "entre contas tuas" aparecem à parte).
+        if not recorrentes.empty:
+            nao_custo = recorrentes["poupanca"] | recorrentes.get("entre_contas", False)
+            final = aplicar_partilhas(recorrentes, detetar_partilhas(movimentos, recorrentes, nome=nome))
+            custos = final[~nao_custo]
+        else:
+            custos = recorrentes
+        for linha in custos.itertuples() if not custos.empty else []:
             rotulos = _movimentos_da_linha(preparados, linha.comerciante, linha.categoria)["rotulo"]
             mais_comum, vezes = Counter(rotulos).most_common(1)[0] if len(rotulos) else ("", 0)
-            if mais_comum and vezes / len(rotulos) >= 0.5 and mais_comum not in encontradas:
+            if mais_comum == "#entre":
+                res.entre_contas_como_custo += 1
+            if mais_comum and not mais_comum.startswith("#") and vezes / len(rotulos) >= 0.5 \
+                    and mais_comum not in encontradas:
                 encontradas.add(mais_comum)
                 v = por_id[mais_comum]
                 res.verdadeiros_positivos += 1
                 res.erros_custo.append(abs(linha.custo_mensal - v.custo_mensal))
+                if v.partilha_mensal > 0:
+                    res.contas_divididas += 1
+                    res.contas_divididas_descontadas += int(linha.partilhado_mensal > 0)
+                    real_app = linha.custo_mensal - linha.partilhado_mensal
+                    res.erros_custo_real.append(abs(real_app - (v.custo_mensal - v.partilha_mensal)))
+                elif linha.partilhado_mensal > 0:
+                    res.descontos_falsos += 1
                 res.estado_certo += int(linha.ativa == v.ativa)
                 avisou = any("subiu" in a for a in linha.alertas)
                 if v.subiu_preco:
@@ -100,6 +141,20 @@ def avaliar(n: int = 300, semente: int = 0) -> Resultado:
                     desc = extrato.loc[exemplo, "descricao"] if exemplo is not None else "?"
                     res.exemplos_fp.append(f"{linha.comerciante} ({linha.periodicidade}, "
                                            f"{linha.custo_mensal:.2f} €/mês) ex.: {desc}")
+
+        # Contas divididas que a app não chegou a encontrar também contam (ficaram por descontar).
+        res.contas_divididas += sum(1 for v in verdades if v.partilha_mensal > 0 and v.id not in encontradas)
+
+        # Pagamentos anuais: vão para "A confirmar"?
+        res.anuais += int((extrato["rotulo"] == "#anual").sum())
+        a_confirmar = possiveis_subscricoes(movimentos, recorrentes, nome=nome)
+        for linha in a_confirmar.itertuples():
+            rotulos = _movimentos_da_linha(preparados, linha.comerciante, linha.categoria)
+            rotulos = rotulos[rotulos["data"].dt.normalize() == pd.Timestamp(linha.ultimo).normalize()]["rotulo"]
+            res.linhas_a_confirmar += 1
+            res.anuais_a_confirmar += int((rotulos == "#anual").any())
+            fixo = (rotulos == "#anual") | ((rotulos != "") & ~rotulos.str.startswith("#"))
+            res.linhas_a_confirmar_fixas += int(fixo.any())
 
         for v in verdades:
             tipo = "catalogo" if v.no_catalogo else "fora"
@@ -139,14 +194,40 @@ def tabela(res: Resultado, n: int) -> str:
     return "\n".join(linhas)
 
 
+def tabela_casos_novos(res: Resultado) -> str:
+    """Os três casos da vida real (entre contas, anuais, contas divididas), em Markdown."""
+    def pct(a: int, b: int) -> str:
+        return f"{100 * a / b:.1f}%".replace(".", ",") if b else "-"
+
+    real = sum(res.erros_custo_real) / len(res.erros_custo_real) if res.erros_custo_real else 0.0
+    linhas = [
+        "| Caso | Valor |",
+        "|---|---|",
+        f"| Linhas de custo que eram dinheiro entre contas tuas | {res.entre_contas_como_custo} "
+        f"(em {res.pessoas_com_entre_contas} extratos com esses movimentos) |",
+        f"| Pagamentos anuais (1 só pagamento) em \"A confirmar\" | {pct(res.anuais_a_confirmar, res.anuais)} "
+        f"de {res.anuais} |",
+        f"| Linhas em \"A confirmar\" que são mesmo pagamentos fixos | "
+        f"{pct(res.linhas_a_confirmar_fixas, res.linhas_a_confirmar)} de {res.linhas_a_confirmar} |",
+        f"| Contas divididas com as partes descontadas | "
+        f"{pct(res.contas_divididas_descontadas, res.contas_divididas)} de {res.contas_divididas} |",
+        f"| Descontos falsos (contas que ninguém divide) | {res.descontos_falsos} |",
+        f"| Erro médio na tua parte, nas contas divididas | {real:.2f} €".replace(".", ",") + " |",
+    ]
+    return "\n".join(linhas)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--n", type=int, default=300, help="número de extratos (default 300)")
     parser.add_argument("--semente", type=int, default=0)
     parser.add_argument("--erros", action="store_true", help="mostrar exemplos de erros")
+    parser.add_argument("--sem-nome", action="store_true", help="como se a pessoa não escrevesse o nome")
     args = parser.parse_args()
-    res = avaliar(args.n, args.semente)
+    res = avaliar(args.n, args.semente, com_nome=not args.sem_nome)
     print(tabela(res, args.n))
+    print()
+    print(tabela_casos_novos(res))
     if args.erros:
         print("\nFalsos positivos (a app mostrou, mas não é subscrição):")
         print("\n".join(f"  - {e}" for e in res.exemplos_fp) or "  nenhum")

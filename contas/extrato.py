@@ -21,6 +21,7 @@ import re
 
 import pandas as pd
 
+from .entre_contas import marcar_pares
 from .texto import (anonimizar, chave, converter_datas, converter_numero, corrigir_texto_pdf,
                     sem_acentos)
 
@@ -455,18 +456,25 @@ def juntar_extratos(extratos: list[pd.DataFrame]) -> pd.DataFrame:
     porque dois cafés de 1,20€ no mesmo dia são mesmo dois movimentos. Por isso
     numeramos as repetições dentro de cada ficheiro (1.º café, 2.º café...) e só
     apagamos quando o mesmo movimento com o mesmo número aparece noutro ficheiro.
+
+    Cada movimento guarda de que ficheiro veio ("origem"). Com extratos de contas
+    diferentes (ex.: banco + Revolut), a coluna "entre_contas" marca as transferências
+    de uma conta tua para outra, que não são custos (ver entre_contas.py).
     """
     if not extratos:
         return pd.DataFrame(columns=["data", "descricao", "valor"])
     partes = []
-    for df in extratos:
+    for i, df in enumerate(extratos):
         df = df.copy()
+        df["origem"] = i
         df["_dia"] = df["data"].dt.normalize()
         df["_ocorrencia"] = df.groupby(["_dia", "descricao", "valor"]).cumcount()
         partes.append(df)
     junto = pd.concat(partes, ignore_index=True)
     junto = junto.drop_duplicates(subset=["_dia", "descricao", "valor", "_ocorrencia"])
-    return junto.drop(columns=["_dia", "_ocorrencia"]).sort_values("data", kind="stable").reset_index(drop=True)
+    junto = junto.drop(columns=["_dia", "_ocorrencia"]).sort_values("data", kind="stable").reset_index(drop=True)
+    junto["entre_contas"] = marcar_pares(junto)
+    return junto
 
 
 # ---------------------------------------------------------------------------

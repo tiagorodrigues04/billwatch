@@ -47,6 +47,7 @@ class Linha:
     estado: str = ""          # "" · "atencao" (marcador) · "parado" (riscado) · "total"
     nota: str = ""
     nota_alerta: bool = False  # nota a caneta vermelha
+    nota_extra: str = ""       # segunda nota, sempre a lápis (ex.: "confirmado por ti", contas divididas)
 
 
 def talao(cabecalho_linhas: list[str], blocos: list[tuple[str | None, list[Linha]]], rodape_texto: str = "") -> None:
@@ -70,6 +71,8 @@ def talao(cabecalho_linhas: list[str], blocos: list[tuple[str | None, list[Linha
                           f'<span class="bw-t-valor" role="cell">{e(l.valor)}</span></div>')
             if l.nota:
                 partes.append(f'<div class="bw-t-nota{" caneta" if l.nota_alerta else ""}">{e(l.nota)}</div>')
+            if l.nota_extra:
+                partes.append(f'<div class="bw-t-nota">{e(l.nota_extra)}</div>')
     if rodape_texto:
         partes.append(f'<div class="bw-t-rodape">{e(rodape_texto)}</div>')
     partes.append("</div>")
