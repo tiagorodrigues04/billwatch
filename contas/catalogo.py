@@ -127,6 +127,20 @@ CATALOGO: list[tuple[str, str, str]] = [
     ("ETORO", "eToro", "Poupança e investimento"),
     ("AFORRO", "Certificados de Aforro", "Poupança e investimento"),
     ("PPR", "PPR", "Poupança e investimento"),
+    ("TRADE REPUBLIC", "Trade Republic", "Poupança e investimento"),
+    # Carregamentos de contas digitais: o dinheiro só muda de conta, não é um custo.
+    # (Os planos pagos destes bancos têm chaves mais compridas e ganham: "REVOLUT PREMIUM".)
+    ("REVOLUT", "Revolut", "Entre contas"),
+    ("N26", "N26", "Entre contas"),
+    ("WISE", "Wise", "Entre contas"),
+    ("TRANSFERWISE", "Wise", "Entre contas"),
+    ("MOEY", "Moey!", "Entre contas"),
+    ("BUNQ", "bunq", "Entre contas"),
+    ("VIVID MONEY", "Vivid", "Entre contas"),
+    ("REVOLUT PREMIUM", "Revolut Premium", "Bancos"),
+    ("REVOLUT PLUS", "Revolut Plus", "Bancos"),
+    ("REVOLUT METAL", "Revolut Metal", "Bancos"),
+    ("REVOLUT ULTRA", "Revolut Ultra", "Bancos"),
     # Mobilidade e entregas com subscrição
     ("UBER ONE", "Uber One", "Mobilidade e entregas"),
     ("GLOVO PRIME", "Glovo Prime", "Mobilidade e entregas"),
@@ -138,6 +152,9 @@ CATALOGO: list[tuple[str, str, str]] = [
 CATEGORIAS_VARIAVEIS = {"Energia"}
 # Recorrentes que não são custos (dinheiro que continua a ser teu).
 CATEGORIAS_POUPANCA = {"Poupança e investimento"}
+# Dinheiro que só passa de uma conta tua para outra (carregar a Revolut, transferir para outro banco).
+ENTRE_CONTAS = "Entre contas"
+CATEGORIAS_NAO_CUSTO = CATEGORIAS_POUPANCA | {ENTRE_CONTAS}
 
 
 # Nomes que contêm uma palavra-chave do catálogo mas NÃO são contas fixas.
@@ -150,6 +167,7 @@ NAO_SUBSCRICAO: dict[str, tuple[str, str] | None] = {
     "GYM SHARK": None, "GYMSHARK": None,   # loja de roupa desportiva, não é ginásio
     "DISNEYLAND": None, "DISNEY STORE": None,
     "GOOGLE PLAY": None,  # compras de apps e jogos (subscrições vêm como GOOGLE *YOUTUBE, GOOGLE ONE...)
+    "REVOLUTION": None,   # "REVOLUT" tem 7 letras e apanhava o início de "REVOLUTION FITNESS"
 }
 _DEBITO_DIRETO = re.compile(r" (SDD|DD|DEB DIRE?C?TO|DEBITO DIRE?C?TO|COBRANCA|DIRECT DEBIT) ")
 

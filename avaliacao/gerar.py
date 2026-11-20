@@ -12,6 +12,18 @@ Os extratos são gerados com regras diferentes das de contas/exemplo.py (que é 
   compras de jogos ao mesmo preço, lojas com nomes parecidos com o catálogo e
   um corte de cabelo mensal a preço fixo (que tem padrão de subscrição mas não é uma).
 
+Casos da vida real que enganavam a app até 20/11 (gerados à parte, com outro gerador
+aleatório, para os extratos de antes ficarem iguais):
+- dinheiro que só muda de conta: carregar a Revolut/Wise/N26 todos os meses e transferências
+  para outra conta no nome do titular (rótulo "#entre": não são custos);
+- pagamentos anuais que só aparecem uma vez no extrato (rótulo "#anual") e compras avulsas
+  em lojas do catálogo, como um jogo na PlayStation Store (rótulo "#avulsa");
+- contas divididas: colegas de casa que pagam a sua parte da renda, da internet ou da luz
+  por MB WAY (coluna "partilha" = id da conta) e, para baralhar, uma mesada dos pais com o
+  apelido do titular perto do dia da renda (que não é uma parte da renda).
+
+Rótulos que começam por "#" nunca são subscrições.
+
 Tudo é inventado. Os preços são plausíveis, não são tabelas oficiais.
 """
 
@@ -88,6 +100,7 @@ class Verdade:
     ativa: bool
     subiu_preco: bool
     no_catalogo: bool = field(default=True)
+    partilha_mensal: float = 0.0     # quanto pagam os outros por mês (contas divididas)
 
 
 def _no_catalogo(nome: str) -> bool:
@@ -201,8 +214,104 @@ def _ruido(rng: random.Random, inicio: pd.Timestamp, local: str):
     return mov
 
 
-def gerar_pessoa(pessoa: int, semente: int = 0) -> tuple[pd.DataFrame, list[Verdade]]:
-    """Um extrato rotulado (data, descricao, valor, rotulo) e a lista das subscrições verdadeiras."""
+# ---------------------------------------------------------------------------
+# Casos novos: entre contas, anuais e contas divididas
+# ---------------------------------------------------------------------------
+
+TITULAR_NOMES = ["TIAGO", "MARTA", "RUI", "INES", "SOFIA", "BEATRIZ", "DIOGO", "CAROLINA"]
+TITULAR_APELIDOS = ["RODRIGUES", "FERREIRA", "MARTINS", "SOUSA", "PEREIRA", "OLIVEIRA", "CARVALHO", "PINTO"]
+COLEGAS_NOMES = ["JOAO", "ANA", "RITA", "PEDRO", "LUIS", "CATARINA", "FILIPE", "MARIANA"]
+COLEGAS_APELIDOS = ["SILVA", "COSTA", "SANTOS", "GOMES", "LOPES", "MARQUES", "RIBEIRO"]   # nunca os do titular
+PARTILHAVEIS = {"Renda", "MEO", "NOS", "Vodafone", "DIGI", "EDP", "Galp (luz)", "Goldenergy", "Água",
+                "Netflix", "Spotify"}
+CARREGAMENTOS = ["TRF IMEDIATA P/ REVOLUT", "COMPRA {n} REVOLUT**{n}* DUBLIN", "WISE EUROPE SA BRUXELAS",
+                 "Trf Imediata Sepa+ N26"]
+PARA_TI = ["TRF P/ {T}", "TRF IMEDIATA PARA {T}", "Transferencia para {t}"]
+ANUAIS = [  # (modelo, nome de um modelo mensal com o mesmo nome no catálogo, que não pode coexistir)
+    (Modelo("Amazon Prime (anual)", ["AMAZON PRIME*{r}", "AMZN PRIME PT"], [49.90], dias=365), None),
+    (Modelo("Seguro automóvel (anual)", ["DD LOGO SEGUROS AUTOMOVEL {r}", "DD OK TELESEGUROS APOLICE {r}"],
+            [312.40, 268.90, 189.50], dias=365), None),
+    (Modelo("Microsoft 365 (anual)", ["MICROSOFT*365 FAMILY ANUAL"], [99.0], dias=365), "Microsoft 365"),
+    (Modelo("Duolingo (anual)", ["DUOLINGO *SUPER ANUAL"], [83.99], dias=365), None),
+]
+AVULSAS = [("PLAYSTATION NETWORK", [69.99, 39.99], "PlayStation Plus"),
+           ("COMPRA {n} NINTENDO ESHOP", [59.99, 19.99], None),
+           ("XBOX STORE {n}", [29.99, 69.99], None)]
+
+
+@dataclass
+class Caso:
+    extrato: pd.DataFrame      # data, descricao, valor, rotulo, partilha
+    verdades: list[Verdade]
+    titular: str               # o nome da pessoa (para reconhecer transferências para contas dela)
+
+
+def _todos_os_meses(rng: random.Random, inicio: pd.Timestamp, valor_dia: int):
+    """Um dia por mês (com 0 a 2 dias de atraso), do início do extrato até ao fim."""
+    for periodo in pd.period_range(inicio, FIM, freq="M"):
+        d = pd.Timestamp(year=periodo.year, month=periodo.month, day=valor_dia) + \
+            pd.Timedelta(days=rng.choice([0, 0, 1, 2]))
+        if inicio <= d <= FIM:
+            yield d
+
+
+def _casos_novos(rng: random.Random, inicio: pd.Timestamp, local: str, titular: str,
+                 subs: list[tuple], verdades: list[Verdade]) -> list[tuple]:
+    mov: list[tuple] = []
+    nomes = {v.nome for v in verdades}
+    apelido = titular.split()[-1]
+
+    if rng.random() < 0.35:   # carregar a Revolut (ou outra conta digital) todos os meses
+        desc, valor = rng.choice(CARREGAMENTOS), rng.choice([50.0, 100.0, 150.0, 200.0])
+        for d in _todos_os_meses(rng, inicio, rng.randint(1, 28)):
+            mov.append((d, _preencher(rng, desc, local), -valor, "#entre", ""))
+    if rng.random() < 0.20:   # mandar dinheiro para outra conta no próprio nome
+        desc = rng.choice(PARA_TI).replace("{T}", titular).replace("{t}", titular.title())
+        valor = rng.choice([100.0, 150.0, 250.0, 300.0])
+        for d in _todos_os_meses(rng, inicio, rng.randint(1, 28)):
+            mov.append((d, desc, -valor, "#entre", ""))
+
+    meses = (FIM - inicio).days / 30.4
+    if meses <= 11.5 and rng.random() < 0.35:   # um pagamento anual (só cabe uma vez no extrato)
+        opcoes = [m for m, conflito in ANUAIS if conflito not in nomes]
+        m = rng.choice(opcoes)
+        d = inicio + pd.Timedelta(days=rng.randint(10, (FIM - inicio).days - 10))
+        mov.append((d, _preencher(rng, rng.choice(m.descricoes), local), -rng.choice(m.precos), "#anual", ""))
+    if rng.random() < 0.30:   # uma compra avulsa numa loja do catálogo (não é anual nem subscrição)
+        opcoes = [a for a in AVULSAS if a[2] not in nomes]
+        desc, precos, _ = rng.choice(opcoes)
+        d = inicio + pd.Timedelta(days=rng.randint(5, (FIM - inicio).days - 5))
+        mov.append((d, _preencher(rng, desc, local), -rng.choice(precos), "#avulsa", ""))
+
+    # Contas divididas: colegas de casa pagam a sua parte de uma conta que sai da conta do titular.
+    pagamentos: dict[str, list] = {}
+    for data, _, valor, sid in subs:
+        pagamentos.setdefault(sid, []).append((data, -valor))
+    partilhaveis = [v for v in verdades if v.nome in PARTILHAVEIS and v.ativa]
+    if partilhaveis and rng.random() < 0.45:
+        v = rng.choice(partilhaveis)
+        k = rng.choice([2, 2, 3, 4])
+        colegas = rng.sample([f"{n} {a}" for n in COLEGAS_NOMES for a in COLEGAS_APELIDOS], k - 1)
+        for colega in colegas:
+            desc = rng.choice(["MB WAY DE {X}", "TRF DE {X}", "TRF IMEDIATA DE {X}"]).replace("{X}", colega)
+            for data, valor in sorted(pagamentos[v.id]):
+                if rng.random() < 0.08:          # um mês em que se esqueceu de pagar
+                    continue
+                d = data + pd.Timedelta(days=rng.randint(-2, 5))
+                if inicio <= d <= FIM:
+                    mov.append((d, desc, round(valor / k, 2), "", v.id))
+        v.partilha_mensal = round(v.custo_mensal * (k - 1) / k, 2)
+    renda = [v for v in verdades if v.nome == "Renda"]
+    if renda and rng.random() < 0.30:   # a mesada dos pais, perto do dia da renda (não é uma parte da renda)
+        pai = f"{rng.choice(['MARIA', 'PAULO', 'ISABEL', 'JORGE'])} {apelido}"
+        valor = round(pagamentos[renda[0].id][0][1] * rng.uniform(0.3, 0.55) / 10) * 10
+        for data, _ in sorted(pagamentos[renda[0].id]):
+            mov.append((data + pd.Timedelta(days=rng.randint(-3, 2)), f"TRF DE {pai}", float(valor), "", ""))
+    return mov
+
+
+def gerar_caso(pessoa: int, semente: int = 0) -> Caso:
+    """Um extrato rotulado, as subscrições verdadeiras e o nome do titular."""
     rng = random.Random(semente * 100_003 + pessoa)
     meses = rng.randint(6, 13)
     inicio = (FIM - pd.DateOffset(months=meses)).normalize() + pd.Timedelta(days=1)
@@ -210,5 +319,16 @@ def gerar_pessoa(pessoa: int, semente: int = 0) -> tuple[pd.DataFrame, list[Verd
     subs, verdades = _subscricoes(rng, inicio, pessoa, local)
     mov = subs + _ruido(rng, inicio, local)
     mov.append((inicio + pd.Timedelta(days=2), "TRF SALARIO / MESADA", 900.0, ""))
-    extrato = pd.DataFrame(mov, columns=["data", "descricao", "valor", "rotulo"])
-    return extrato.sort_values("data").reset_index(drop=True), verdades
+    mov = [m + ("",) for m in mov]
+
+    outro = random.Random((semente * 100_003 + pessoa) * 31 + 7)   # não mexe nos extratos de antes
+    titular = f"{outro.choice(TITULAR_NOMES)} {outro.choice(TITULAR_APELIDOS)}"
+    mov += _casos_novos(outro, inicio, local, titular, subs, verdades)
+    extrato = pd.DataFrame(mov, columns=["data", "descricao", "valor", "rotulo", "partilha"])
+    return Caso(extrato.sort_values("data", kind="stable").reset_index(drop=True), verdades, titular)
+
+
+def gerar_pessoa(pessoa: int, semente: int = 0) -> tuple[pd.DataFrame, list[Verdade]]:
+    """Um extrato rotulado (data, descricao, valor, rotulo, partilha) e as subscrições verdadeiras."""
+    caso = gerar_caso(pessoa, semente)
+    return caso.extrato, caso.verdades

@@ -5,7 +5,10 @@
 Carregas o extrato do banco e a app encontra sozinha as subscrições e contas fixas
 (Netflix, ginásio, MEO, renda...), diz-te quanto isso dá por mês e por ano e avisa-te
 quando um preço sobe, quando há uma cobrança duplicada ou quando um serviço parou de
-ser cobrado. Também lê a fatura da luz em PDF e compara-a com outras ofertas.
+ser cobrado. Não conta como custo o dinheiro que só muda de conta (carregar a Revolut),
+desconta o que os colegas de casa te pagam da renda ou da internet e guarda para
+confirmares os pagamentos que só aparecem uma vez por ano. Também lê a fatura da luz em
+PDF e compara-a com outras ofertas.
 
 Inspirado no Rocket Money (EUA), adaptado a bancos e serviços portugueses.
 Feito em Python (pandas, pdfplumber) e Streamlit.
@@ -19,17 +22,37 @@ Feito em Python (pandas, pdfplumber) e Streamlit.
 A deteção foi medida em **1000 extratos fictícios rotulados** (6 a 13 meses cada, 7301
 subscrições). Os extratos têm de propósito os casos difíceis: abastecimentos na Galp,
 MB WAY para amigos com valores redondos, compras de jogos ao mesmo preço, serviços
-cobrados em dólares, subidas de preço, cancelamentos e cobranças duplicadas
-(ver [Avaliação](#avaliação)).
+cobrados em dólares, subidas de preço, cancelamentos e cobranças duplicadas. Desde 20/11
+têm também três casos da vida real que enganavam a app: **carregamentos da Revolut e
+transferências para outras contas do titular**, **pagamentos anuais** que só aparecem uma
+vez no extrato e **contas divididas** com colegas de casa (ver [Avaliação](#avaliação)).
 
-| Métrica | Versão anterior | Atual |
+| Métrica | Antes (20/11) | Atual |
 |---|---|---|
-| **Precisão** (quando diz que é subscrição, acerta) | 86,0% | **97,4%** |
-| **Recall** (das subscrições que existem, quantas encontra) | 98,7% | **99,9%** |
-| Erro médio no custo por mês | 0,23 € | **0,04 €** |
-| Subidas de preço avisadas | 82,2% | **95,2%** |
-| Avisos de subida falsos | 91 | **1** |
+| **Precisão** (quando diz que é subscrição, acerta) | 90,8% | **97,4%** |
+| **Recall** (das subscrições que existem, quantas encontra) | 99,9% | **99,9%** |
+| Erro médio no custo por mês | 0,04 € | 0,04 € |
+| Subidas de preço avisadas | 95,2% | 95,2% |
+| Avisos de subida falsos | 1 | 1 |
 | Ativa / cancelada certa | 100% | 100% |
+
+| Caso da vida real | Antes (20/11) | Atual |
+|---|---|---|
+| Linhas de custo que eram dinheiro entre contas tuas (475 extratos com esses movimentos) | 541 | **0** |
+| Pagamentos anuais com 1 só pagamento que aparecem no talão (240) | 0% | **100%**, em "A confirmar" |
+| Contas divididas com as partes dos colegas descontadas (429) | 0% | **100%** |
+| Erro médio na tua parte, nas contas divididas | 33,34 € | **0,03 €** |
+| Descontos falsos (contas que ninguém divide) | 0 | 0 |
+
+Na coluna "Atual", a pessoa escreveu o nome em *Corrigir → Contas tuas*. Sem o nome, as
+transferências para outra conta no nome dela continuam a contar como custo (208 linhas,
+precisão de 94,8%) e uma mesada dos pais perto do dia da renda passa por uma parte da renda
+(49 descontos falsos, que se desligam um a um em *Corrigir → Dividir*). Das linhas em
+"A confirmar", 56% são mesmo pagamentos fixos (anuais ou subscrições que começaram agora);
+as outras são compras avulsas em lojas do catálogo, como um jogo na PlayStation Store, que
+pela data não se distinguem de um pagamento anual. Por isso ficam a confirmar e não entram
+no total. A primeira versão (19/11), medida só com os casos difíceis de então, tinha 86,0% de
+precisão.
 
 ---
 
@@ -40,7 +63,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 streamlit run app.py               # abre em http://localhost:8501
-pytest                             # ~130 testes
+pytest                             # ~180 testes
 python -m avaliacao.avaliar        # mede a qualidade da deteção
 ```
 
@@ -57,7 +80,7 @@ cada alteração (separador *Actions*).
 | **PDF** | com grelha ou só texto · colunas Débito/Crédito, "Dinheiro retirado/recebido", "Money out/in" ou um só "Montante" · do mais antigo para o mais recente ou ao contrário · várias secções e páginas · descrições em 2 linhas · data só na 1.ª linha de cada dia · PDFs com letras estragadas (`(cid:231)`) |
 | **Valores** | `1.234,56` `1,234.56` `-9,99` `9,99-` `(9,99)` `+9,99` `9,99 D/C` `€9.99` `9,99 €` `1 234,56` · ou valor positivo com coluna D/C |
 | **Datas** | `05-10-2026` `05/10/26` `05.10.2026` `2026-10-05` `5 out 2026` `5 de out. de 2026` `Oct 5, 2026` · e sem ano (`05.10`), com o ano tirado do período do extrato |
-| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam |
+| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam · com extratos de bancos diferentes, as transferências entre as tuas contas são emparelhadas e não contam como custo |
 | **Não é um extrato da conta** | extratos de cripto/investimentos (colunas Quantidade/Preço, tickers como BTC, ETH, SOL) são reconhecidos e ficam de fora, com uma explicação |
 
 **Verificação de qualidade.** Cada leitura é verificada antes de entrar na análise: se a
@@ -98,16 +121,19 @@ contas/                 A lógica, sem Streamlit (testável à parte)
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
   leitor_pdf.py         Extratos em PDF (várias estratégias, fica a mais coerente)
   catalogo.py           Comerciantes conhecidos em PT → nome e categoria
-  recorrentes.py        Deteção de pagamentos recorrentes + alertas
+  recorrentes.py        Deteção de pagamentos recorrentes + alertas; "A confirmar" (anuais)
+  entre_contas.py       Dinheiro que só muda de conta: nome do titular e pares entre extratos
+  partilhas.py          Contas divididas: quem te paga parte de uma conta, e a tua parte
   energia.py            Fatura da luz e comparação de ofertas
   exemplo.py            Extrato fictício da demo e dos testes
 avaliacao/              Medir a qualidade da deteção
   gerar.py              Extratos fictícios rotulados (cada movimento sabe se é subscrição)
-  avaliar.py            Precisão, recall, erro no custo e alertas
+  avaliar.py            Precisão, recall, erro no custo, alertas e os três casos da vida real
 static/                 Logótipo, favicon e fontes (servidos pela própria app)
 .streamlit/config.toml  Tema: cores, fontes e tamanhos
 dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
 tests/                  Testes da lógica, dos formatos, da interface e da qualidade mínima
+  cenarios.py           Extratos pequenos com os casos entre contas, anuais e contas divididas
 docs/                   Imagens do README
 .github/workflows/      Corre os testes no GitHub a cada alteração
 ```
@@ -167,7 +193,8 @@ A mesma subscrição aparece com descrições diferentes todos os meses:
   provas, tal como os comerciantes do catálogo. **MB WAY para pessoas** precisa de mais
   um pagamento, porque valores redondos (10 €, 20 €) repetem-se por acaso.
 - **Poupança e investimento** (cofres, cripto, PPR, corretoras) são recorrentes mas não
-  são custos: aparecem à parte e não entram no "Pagas por mês".
+  são custos: aparecem à parte e não entram no "Pagas por mês". O mesmo para o dinheiro
+  que **só muda de conta** (ver o ponto 5).
 
 ### 3. Detetar recorrência (`recorrentes.py`)
 Para cada comerciante:
@@ -196,12 +223,55 @@ pagamento atrasou 10 dias não estraga a estimativa do intervalo.
   Estas não entram nos totais.
 - **Cobrança duplicada**: num serviço mensal, dois pagamentos com menos de 10 dias.
 
-### 5. Confiança
+### 5. Dinheiro que só muda de conta (`entre_contas.py`)
+Carregar a Revolut com 100 € todos os meses tem o padrão perfeito de uma subscrição, mas
+não é um custo. Estes movimentos vão para o bloco "Entre contas tuas" de três formas:
+- **Carregamentos de contas digitais** (Revolut, N26, Wise, Moey!...), pelo catálogo. Os
+  planos pagos (`REVOLUT PREMIUM`) têm chaves mais compridas e continuam a ser custos, e
+  `REVOLUTION FITNESS` não é a Revolut.
+- **Transferências com o nome do titular** (`TRF P/ TIAGO RODRIGUES`), se a pessoa escrever
+  o nome em *Corrigir → Contas tuas*. Exige o primeiro nome e um apelido (o banco às vezes
+  corta: `RODRIGU`): `MB WAY PARA TIAGO` pode ser um amigo e `TRF DE MARIA RODRIGUES` pode
+  ser a mãe.
+- **Pares entre extratos de contas diferentes**: sai X de uma conta e entra exatamente X
+  noutra, entre 1 dia antes e 3 dias depois, e pelo menos um dos lados parece uma
+  transferência. Só conta entre ficheiros que se sobrepõem no tempo (contas diferentes):
+  ficheiros do mesmo banco mês a mês não fazem pares.
+
+### 6. Pagamentos anuais ("A confirmar")
+Um seguro ou o Amazon Prime pagos uma vez por ano aparecem uma só vez no extrato, por isso
+nunca se provam pelo padrão, e antes desapareciam do talão. Agora, num extrato longo, os
+pagamentos únicos a um comerciante do catálogo ou por débito direto vão para
+**"A confirmar"**: "só 1 pagamento em 4 meses: se for anual, renova por volta de 06/2027
+(4,16 € por mês)". Se o pagamento foi há menos de 40 dias, pode ser uma subscrição nova.
+Os consumos (luz, água) ficam de fora. Nada disto entra no total até a pessoa confirmar em
+*Corrigir → Adicionar*, onde escolhe a frequência; lá também se acrescenta à mão o que falta.
+
+### 7. Contas divididas (`partilhas.py`)
+Se pagas a MEO (40 €) e os dois colegas de casa te mandam 10 € cada, o teu custo real é
+20 €. O talão mostra a conta inteira, as **partes pagas por outros** e o total já com o
+desconto.
+1. Entradas de **pessoas** ("MB WAY DE ANA COSTA", "TRF DE ...", "Payment from ..."). Não
+   contam empresas, rendimentos (salário, bolsa), as tuas próprias transferências e, se
+   escreveres o teu nome, pessoas com o teu apelido (mais provável serem família).
+2. Para cada conta fixa, cada pagamento da conta procura uma entrada dessa pessoa até
+   **7 dias** antes ou depois. A pessoa acompanha a conta se aparecer em **≥60%** dos meses
+   em que lá esteve (há quem se atrase ou falhe um mês) e quase sempre com a **mesma
+   fração** da conta. A fração (e não o valor) é o que conta: numa conta de luz o valor
+   muda todos os meses, a metade não. Uma pessoa paga no máximo 60% de uma conta.
+3. Se a pessoa encaixa em várias contas, ganha primeiro uma conta que se costuma dividir
+   (casa, internet, luz, streaming); depois a que fecha uma **divisão em partes iguais**
+   com as outras pessoas (duas pessoas com 1/3 cada, mais tu), e só depois a mais próxima
+   no tempo. As frações de todos nunca passam a conta inteira.
+4. Em *Corrigir → Dividir* desliga-se uma parte detetada ou divide-se uma conta à mão
+   (ex.: a luz por 3).
+
+### 8. Confiança
 `0,5 × regularidade + 0,3 × estabilidade do valor + 0,2 × (está no catálogo)`.
 É uma heurística simples e explicável, e um ponto de partida para um modelo treinado
 com dados rotulados (ver [Próximos passos](#próximos-passos)).
 
-### 6. Luz (`energia.py`)
+### 9. Luz (`energia.py`)
 `custo = termo fixo (€/dia) × dias + preço (€/kWh) × consumo (kWh)`, convertido para
 um mês médio de 30,4 dias. Comparamos antes de IVA e taxas porque essas são
 praticamente iguais em todas as comercializadoras e não mudam o ranking.
@@ -217,6 +287,14 @@ propinas, e 5 serviços **fora do catálogo** que só podem ser encontrados pelo
 escritas como em bancos diferentes, com o dia de cobrança a variar e débitos que passam
 para segunda-feira quando calham ao fim de semana. O ruído é o de um mês normal
 (supermercado, cafés, Uber) e os casos que enganavam a versão anterior.
+
+Os três casos da vida real são gerados à parte, com outro gerador aleatório, para os
+extratos de antes ficarem iguais: carregamentos da Revolut/Wise/N26 e transferências para
+outra conta no nome do titular (35% e 20% das pessoas), um pagamento anual que só cabe uma
+vez no extrato (35%), uma compra avulsa numa loja do catálogo (30%), uma conta dividida
+com 1 a 3 colegas que às vezes se atrasam ou falham um mês (45%) e, para baralhar, a mesada
+dos pais com o apelido do titular perto do dia da renda. Com `--sem-nome` a avaliação faz
+de conta que a pessoa não escreveu o nome.
 
 **Como se conta.** Cada linha do talão é comparada com os rótulos dos movimentos que a
 formam: é um acerto se a maioria pertence a uma subscrição verdadeira. Precisão =
@@ -240,6 +318,14 @@ falha se a precisão descer de 95% ou o recall de 97%.
   disso. A leitura da fatura e as contas são reais; para comparar com preços atuais
   pode carregar-se uma tabela própria.
 - A leitura de faturas de luz é "melhor esforço": cada comercializadora tem o seu layout.
+- **Sem o nome do titular**, uma transferência para outra conta tua conta como custo, e uma
+  mesada da família perto do dia da renda pode passar por uma parte da renda. A app mostra
+  quem "paga parte" de cada conta para se poder desligar.
+- **"A confirmar" não sabe distinguir** um pagamento anual de uma compra avulsa na mesma
+  loja (um jogo na PlayStation Store). Por isso não entra no total sem confirmação.
+- Nas contas divididas, os dados sintéticos têm divisões em partes iguais e colegas
+  com nomes de pessoas. Na vida real há divisões desiguais, uma só transferência para
+  várias contas e partes pagas em dinheiro; nesses casos divide-se à mão.
 
 ## Próximos passos
 
