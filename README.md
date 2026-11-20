@@ -10,6 +10,8 @@ ser cobrado. Também lê a fatura da luz em PDF e compara-a com outras ofertas.
 Inspirado no Rocket Money (EUA), adaptado a bancos e serviços portugueses.
 Feito em Python (pandas, pdfplumber) e Streamlit.
 
+**▶ Experimenta online: [billwatch-pt.streamlit.app](https://billwatch-pt.streamlit.app/)** (abre com um extrato de exemplo, não é preciso carregar dados reais)
+
 <p align="center"><img src="docs/talao.png" alt="Talão do BillWatch com as contas fixas de um extrato de exemplo: renda, luz, MEO, ginásio, ChatGPT, seguro, Netflix com aviso de subida de preço, Spotify com aviso de cobrança repetida e Disney+ riscado por já não ser cobrado" width="420"></p>
 
 ## Resultados
