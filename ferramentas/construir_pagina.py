@@ -32,7 +32,7 @@ STLITE = "1.12.3"   # traz o Streamlit 1.65 e o Pyodide 314.0.3 (Python 3.14)
 # Do PyPI: pdfminer.six, na versão exata que o pdfplumber pede.
 REQUISITOS = ["pdfminer.six==20260107", "python-calamine", "lxml"]
 # O pdfplumber pede o pypdfium2, que não existe para o browser e só serve para desenhar páginas
-# como imagem (a app não usa). Instala-se sem dependências.
+# como imagem (a app não usa). Instala-se sem dependências, depois de o Python carregar.
 SEM_DEPENDENCIAS = ["pdfplumber==0.11.10"]
 
 FICHEIROS = ["app.py", "contas/*.py", "ui/*.py", "paginas/*.py", "dados/ofertas_luz.csv",

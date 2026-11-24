@@ -65,7 +65,8 @@ def test_html_bem_fechado_e_com_as_versoes_fixas(html):
     bloco = re.search(r'id="ficheiros">(.*?)</script>', html, re.S).group(1)
     assert "<" not in bloco                                 # nada lá dentro fecha o <script> antes do tempo
     assert 'const STLITE = "1.12.3"' in html and "@stlite/browser@${STLITE}/build/stlite.js" in html
-    assert '"pdfplumber==0.11.10"' in html and "deps: false" in html
+    assert 'const SEM_DEPENDENCIAS = ["pdfplumber==0.11.10"]' in html
+    assert "app.install(SEM_DEPENDENCIAS, { deps: false })" in html    # o mount() ignora "installs"
     assert not re.search(r"__[A-Z]+__", html)               # todas as marcas do modelo foram trocadas
 
 

@@ -60,6 +60,7 @@
   // BillWatch a correr no browser com stlite (Streamlit + Pyodide). Página gerada por
   // ferramentas/construir_pagina.py (versão __COMMIT__); não se edita à mão.
   const STLITE = "__STLITE__";
+  const SEM_DEPENDENCIAS = __SEM_DEPENDENCIAS__;
   const $ = (id) => document.getElementById(id);
   const etapa = (texto) => { $("etapa").textContent = texto; };
 
@@ -148,7 +149,6 @@
     const app = mount({
       entrypoint: "app.py",
       requirements: __REQUISITOS__,
-      installs: [{ requirements: __SEM_DEPENDENCIAS__, options: { deps: false } }],
       files: ficheiros,
       streamlitConfig: { "browser.gatherUsageStats": false },
       disableProgressToasts: true,
@@ -163,7 +163,18 @@
         falhou("A app não conseguiu arrancar",
                "Confirma que tens ligação à internet e recarrega a página. Se voltar a acontecer, " +
                "manda os detalhes abaixo.", e.detail));
-      kernel.addEventListener("loadFinished", () => {
+      kernel.addEventListener("loadFinished", async () => {
+        // O stlite 1.12.3 ignora a opção "installs" do mount(), por isso as bibliotecas que vão
+        // sem dependências instalam-se aqui, antes de se poder carregar um extrato.
+        etapa("A instalar o leitor de PDF…");
+        try {
+          await app.install(SEM_DEPENDENCIAS, { deps: false });
+        } catch (erro) {
+          falhou("A app não conseguiu arrancar",
+                 "Confirma que tens ligação à internet e recarrega a página. Se voltar a acontecer, " +
+                 "manda os detalhes abaixo.", erro);
+          return;
+        }
         etapa("Quase pronto…");
         pronto = performance.now();   // se a app demorar a desenhar-se, o relógio esconde isto
         vigiar();
