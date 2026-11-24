@@ -7,7 +7,8 @@ Cores (só com significado, nunca decoração):
     grafite   #5B6B82  texto secundário
     marcador  #FFE45C  linha que merece atenção (como passar o marcador num extrato)
     caneta    #C62D2D  nota de alerta (como anotar a caneta vermelha)
-Tipos: Schibsted Grotesk na interface; IBM Plex Mono só dentro do talão.
+Tipos: Schibsted Grotesk na interface, com algarismos tabulares (todos com a mesma largura, para os
+valores alinharem em coluna; ver ferramentas/fonte_tabular.py); IBM Plex Mono só dentro do talão.
 """
 
 from __future__ import annotations
@@ -29,7 +30,11 @@ CSS = """
 /* ---------- tipografia ---------- */
 h1 { letter-spacing: -0.03em; line-height: 1.02 !important; }
 h2, h3 { letter-spacing: -0.015em; }
+/* Títulos partidos em linhas equilibradas, sem uma palavra sozinha na última (no telemóvel). */
+h1, h2, h3 { text-wrap: balance; }
 .stMarkdown p, .stMarkdown li { max-width: 68ch; }
+/* Parágrafos sem uma palavra sozinha na última linha (onde o browser souber fazê-lo). */
+.stMarkdown p, .stMarkdown li, .bw-lead, .bw-passos li, .bw-t-nota { text-wrap: pretty; }
 
 .bw-lead { font-size: 1.15rem; line-height: 1.5; color: var(--grafite); max-width: 54ch; margin: .5rem 0 2rem; }
 .bw-discreto { color: var(--grafite); font-size: .9rem; }
@@ -85,7 +90,7 @@ h2, h3 { letter-spacing: -0.015em; }
 @media (prefers-reduced-motion: reduce) { .bw-talao { animation: none; } }
 
 .bw-t-cab { text-align: center; margin-bottom: .9rem; }
-.bw-t-cab b { display: block; font-family: "Schibsted Grotesk", sans-serif; font-weight: 800;
+.bw-t-cab b { display: block; font-family: "Schibsted Grotesk Tabular", sans-serif; font-weight: 800;
               font-size: 1.15rem; letter-spacing: -0.02em; margin-bottom: .15rem; }
 .bw-t-cab span { display: block; color: var(--grafite); }
 .bw-t-sep { border-top: 1.5px dashed var(--linha); margin: .8rem 0; }
@@ -94,7 +99,7 @@ h2, h3 { letter-spacing: -0.015em; }
 .bw-t-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-t-pontos { flex: 1 1 1rem; min-width: 1rem; border-bottom: 1.5px dotted var(--linha); transform: translateY(-.3em); }
 .bw-t-valor { white-space: nowrap; font-weight: 500; }
-.bw-t-nota { font-family: "Schibsted Grotesk", sans-serif; font-size: .82rem; line-height: 1.35;
+.bw-t-nota { font-family: "Schibsted Grotesk Tabular", sans-serif; font-size: .82rem; line-height: 1.35;
              color: var(--grafite); margin: .05rem 0 .5rem; }
 .bw-t-nota.caneta { color: var(--caneta); font-weight: 600; }
 .bw-t-linha.atencao .bw-t-nome { background: linear-gradient(transparent 10%, var(--marcador) 10%,
@@ -104,6 +109,18 @@ h2, h3 { letter-spacing: -0.015em; }
 .bw-t-total { font-weight: 500; font-size: 1rem; margin-top: .1rem; }
 .bw-t-total .bw-t-valor { font-weight: 500; font-size: 1.15rem; }
 .bw-t-rodape { text-align: center; color: var(--grafite); margin-top: 1.1rem; font-size: .78rem; }
+
+/* ---------- o talão a cinzento, enquanto os extratos são lidos ---------- */
+.bw-esqueleto { animation: none; }
+.bw-esqueleto .bw-t-linha { align-items: center; }
+.bw-esqueleto .bw-t-pontos { transform: none; }
+.bw-esq { display: block; flex: none; height: .75em; margin: .5em 0; border-radius: 3px;
+          background: linear-gradient(90deg, #E5EAF0 0%, #F3F6F9 45%, #E5EAF0 90%); background-size: 250% 100%;
+          animation: bw-brilho 1.3s ease-in-out infinite; }
+.bw-t-cab .bw-esq { margin: .45em auto; }
+.bw-esq-titulo { width: 38%; height: 1.1em; }
+@keyframes bw-brilho { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .bw-esq { animation: none; } }
 
 /* ---------- rodapé ---------- */
 .bw-rodape { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--linha); color: var(--grafite);

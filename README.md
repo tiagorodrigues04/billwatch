@@ -112,10 +112,10 @@ paginas/
   luz.py                Ler a fatura da luz e comparar ofertas
   sobre.py              Como funciona, em linguagem simples
 ui/
-  estilo.py             Identidade visual (cores, CSS do talão)
-  componentes.py        Peças visuais: talão, passos, gráfico, rodapé
+  estilo.py             Identidade visual (cores, CSS do talão e do talão a cinzento)
+  componentes.py        Peças visuais: talão, talão a cinzento, passos, gráfico, rodapé
   leitura.py            Ler os ficheiros carregados, com plano B se o formato for desconhecido
-  dados.py              Leituras com cache
+  dados.py              Leituras e análise com cache (os cliques não repetem as contas)
 contas/                 A lógica, sem Streamlit (testável à parte)
   texto.py              Ler números e datas escritos de qualquer forma; anonimizar
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
@@ -130,6 +130,8 @@ avaliacao/              Medir a qualidade da deteção
   gerar.py              Extratos fictícios rotulados (cada movimento sabe se é subscrição)
   avaliar.py            Precisão, recall, erro no custo, alertas e os três casos da vida real
 static/                 Logótipo, favicon e fontes (servidos pela própria app)
+ferramentas/
+  fonte_tabular.py      Gera a fonte da interface com algarismos tabulares
 .streamlit/config.toml  Tema: cores, fontes e tamanhos
 dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
 tests/                  Testes da lógica, dos formatos, da interface e da qualidade mínima
@@ -153,6 +155,20 @@ alguma coisa:
 
 Tipos de letra: **Schibsted Grotesk** na interface e **IBM Plex Mono** só dentro do talão.
 São servidos pela própria app (`static/fontes`, licença OFL), sem pedidos a terceiros.
+
+Detalhes que fazem a app parecer mais cuidada:
+- **Algarismos tabulares**: todos os algarismos têm a mesma largura, por isso os valores
+  alinham em coluna (as vírgulas de 577,16 € e de 540,00 € ficam umas por baixo das outras).
+  As tabelas do Streamlit são desenhadas num canvas, onde o CSS `tabular-nums` não chega,
+  por isso a app usa uma cópia da Schibsted Grotesk com os algarismos tabulares por omissão
+  (`ferramentas/fonte_tabular.py`; só mudam os algarismos, a pontuação fica igual).
+- **Títulos equilibrados**: os títulos partem-se em linhas de tamanho parecido
+  (`text-wrap: balance`) e os parágrafos não acabam com uma palavra sozinha (`text-wrap: pretty`).
+- **Talão a cinzento**: enquanto os extratos são lidos, aparece a forma do talão no sítio
+  onde ele vai ficar, em vez de um spinner. Sem animação para quem a desligou no sistema.
+- **Cliques rápidos**: o Streamlit volta a correr a página a cada clique; a junção dos
+  extratos, a deteção e o gráfico ficam em cache, por isso um clique no "Corrigir" não repete
+  as contas (com 3 extratos juntos, de 519 ms para 172 ms; com o exemplo, de 202 para 78 ms).
 
 ## Como funciona
 

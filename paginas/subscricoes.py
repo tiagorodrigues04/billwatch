@@ -5,13 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from contas.extrato import juntar_extratos
-from contas.partilhas import aplicar_partilhas, detetar_partilhas
-from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, Parametros, confirmados,
-                                detetar_recorrentes, euro, juntar_linhas, linha_fixa, possiveis_subscricoes,
-                                preparar, resumo, sem_sufixo)
-from ui.componentes import Linha, barras, cabecalho, discreto, passos, talao
-from ui.dados import csv_exemplo, ler_extrato
+from contas.partilhas import aplicar_partilhas
+from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, confirmados, euro, juntar_linhas,
+                                linha_fixa, resumo, sem_sufixo)
+from ui.componentes import Linha, barras, cabecalho, discreto, passos, talao, talao_a_cinzento
+from ui.dados import analisar, csv_exemplo, juntar, ler_extrato, movimentos
 from ui.leitura import ler_ficheiros, mostrar_leitura
 
 FORMATOS = ["csv", "txt", "xlsx", "xls", "pdf"]
@@ -211,97 +209,107 @@ usar_exemplo = not ficheiros and linha.toggle("Ver com dados de exemplo", value=
 linha.download_button("Descarregar o extrato de exemplo", csv_exemplo(), "extrato_exemplo.csv", "text/csv",
                       type="tertiary", icon=":material/download:")
 
+avisos = st.container()      # ficheiros que não deu para ler (aparecem por cima do talão)
+zona = st.empty()            # o talão a cinzento enquanto lê e analisa, e depois os resultados
+
 if ficheiros:
-    lidos = ler_ficheiros(ficheiros)
-    extrato = juntar_extratos(lidos) if lidos else None
+    # Ficheiros novos levam tempo a ler (um PDF pode demorar segundos): mostra já a forma do talão.
+    # Nos cliques seguintes está tudo em cache, por isso não se mostra (seria só um piscar).
+    assinatura = tuple((f.file_id, f.size) for f in ficheiros)
+    if st.session_state.get("_ficheiros_lidos") != assinatura:
+        talao_a_cinzento(zona, f"A ler {len(ficheiros)} ficheiro{'s' if len(ficheiros) > 1 else ''}…")
+    with avisos:
+        lidos = ler_ficheiros(ficheiros)
+    st.session_state["_ficheiros_lidos"] = assinatura
+    extrato = juntar(lidos) if lidos else None
     n_lidos = len(lidos)
 elif usar_exemplo:
     extrato, n_lidos = ler_extrato(csv_exemplo()), 1
 else:
     extrato, n_lidos = None, 0
 
-if extrato is not None and not extrato.empty:
+if extrato is None or extrato.empty:
+    zona.empty()
+else:
     # Afinações (os controlos estão mais abaixo; aqui lê-se o valor escolhido)
     estado = st.session_state
     if estado.get("inverter_todos"):
         extrato = extrato.assign(valor=-extrato["valor"])
-    parametros = Parametros(min_pagamentos=estado.get("p_min", 3), regularidade_minima=estado.get("p_reg", 0.7),
-                            variacao_maxima_valor=estado.get("p_var", 0.15))
     nome = (estado.get("nome_titular") or "").strip()
-    recorrentes = detetar_recorrentes(extrato, parametros, nome=nome)
-    possiveis = possiveis_subscricoes(extrato, recorrentes, nome=nome)
-    partilhas = detetar_partilhas(extrato, recorrentes, nome=nome, parametros=parametros)
+    recorrentes, possiveis, partilhas = analisar(extrato, estado.get("p_min", 3), estado.get("p_reg", 0.7),
+                                                 estado.get("p_var", 0.15), nome)
     dias = (extrato["data"].max() - extrato["data"].min()).days
 
-    st.divider()
-    titulo, corrigir = st.columns([3, 1], vertical_alignment="bottom")
-    titulo.subheader("O talão do exemplo" if usar_exemplo and not ficheiros else "O teu talão", anchor=False)
-    with corrigir.popover("Corrigir", width="stretch"):
-        recorrentes, possiveis, partilhas, divisoes = _corrigir(recorrentes, possiveis, partilhas)
-    recorrentes = aplicar_partilhas(recorrentes, partilhas, divisoes)
+    resultados = zona.container()   # substitui o talão a cinzento
+    with resultados:
+        st.divider()
+        titulo, corrigir = st.columns([3, 1], vertical_alignment="bottom")
+        titulo.subheader("O talão do exemplo" if usar_exemplo and not ficheiros else "O teu talão", anchor=False)
+        with corrigir.popover("Corrigir", width="stretch"):
+            recorrentes, possiveis, partilhas, divisoes = _corrigir(recorrentes, possiveis, partilhas)
+        recorrentes = aplicar_partilhas(recorrentes, partilhas, divisoes)
 
-    if dias < DIAS_EXTRATO_CURTO:
-        st.info(f"Os extratos cobrem só {dias + 1} dias. Para confirmar que um pagamento se repete são precisos "
-                "2 a 3 meses: junta mais ficheiros para um talão completo.")
+        if dias < DIAS_EXTRATO_CURTO:
+            st.info(f"Os extratos cobrem só {dias + 1} dias. Para confirmar que um pagamento se repete são precisos "
+                    "2 a 3 meses: junta mais ficheiros para um talão completo.")
 
-    periodo = f"{extrato['data'].min():%d/%m/%Y} a {extrato['data'].max():%d/%m/%Y}"
-    origem = ("Exemplo com dados fictícios" if usar_exemplo and not ficheiros else
-              f"{len(extrato)} movimentos de {n_lidos} ficheiro{'s' if n_lidos > 1 else ''}")
-    blocos, rodape_talao = _blocos_do_talao(recorrentes, possiveis, dias < DIAS_EXTRATO_CURTO)
-    talao(["BillWatch", "Contas fixas", periodo, origem], blocos, rodape_talao)
+        periodo = f"{extrato['data'].min():%d/%m/%Y} a {extrato['data'].max():%d/%m/%Y}"
+        origem = ("Exemplo com dados fictícios" if usar_exemplo and not ficheiros else
+                  f"{len(extrato)} movimentos de {n_lidos} ficheiro{'s' if n_lidos > 1 else ''}")
+        blocos, rodape_talao = _blocos_do_talao(recorrentes, possiveis, dias < DIAS_EXTRATO_CURTO)
+        talao(["BillWatch", "Contas fixas", periodo, origem], blocos, rodape_talao)
 
-    custos = recorrentes[recorrentes["ativa"] & ~recorrentes["poupanca"] & ~recorrentes["entre_contas"]] \
-        if not recorrentes.empty else recorrentes
-    if not custos.empty and custos["categoria"].nunique() > 1:
-        st.subheader("Onde vai o dinheiro", anchor=False)
-        discreto("Contas fixas por categoria, em euros por mês (a tua parte, nas contas divididas).")
-        barras(custos.groupby("categoria", as_index=False)["custo_real_mensal"].sum(), "categoria",
-               "custo_real_mensal", "€ por mês")
+        custos = recorrentes[recorrentes["ativa"] & ~recorrentes["poupanca"] & ~recorrentes["entre_contas"]] \
+            if not recorrentes.empty else recorrentes
+        if not custos.empty and custos["categoria"].nunique() > 1:
+            st.subheader("Onde vai o dinheiro", anchor=False)
+            discreto("Contas fixas por categoria, em euros por mês (a tua parte, nas contas divididas).")
+            barras(custos.groupby("categoria", as_index=False)["custo_real_mensal"].sum(), "categoria",
+                   "custo_real_mensal", "€ por mês")
 
-    if not recorrentes.empty:
-        with st.expander("Ver o detalhe de cada pagamento"):
-            def _estado(r) -> str:
-                if r.poupanca:
-                    return "Poupança"
-                if r.entre_contas:
-                    return "Entre contas"
-                return "Ativa" if r.ativa else "Parada"
+        if not recorrentes.empty:
+            with st.expander("Ver o detalhe de cada pagamento"):
+                def _estado(r) -> str:
+                    if r.poupanca:
+                        return "Poupança"
+                    if r.entre_contas:
+                        return "Entre contas"
+                    return "Ativa" if r.ativa else "Parada"
 
-            tabela = recorrentes.assign(
-                comerciante=recorrentes["comerciante"].map(sem_sufixo),
-                confianca=(recorrentes["confianca"] * 100).round(),
-                estado=[_estado(r) for r in recorrentes.itertuples()])
-            st.dataframe(
-                tabela[["comerciante", "categoria", "periodicidade", "valor_tipico", "custo_anual",
-                        "custo_real_mensal", "proximo_previsto", "estado", "confianca"]],
-                hide_index=True, width="stretch",
-                column_config={
-                    "comerciante": "Serviço", "categoria": "Categoria", "periodicidade": "Frequência",
-                    "valor_tipico": st.column_config.NumberColumn("Valor", format="%.2f €"),
-                    "custo_anual": st.column_config.NumberColumn("Por ano", format="%.2f €"),
-                    "custo_real_mensal": st.column_config.NumberColumn("A tua parte por mês", format="%.2f €"),
-                    "proximo_previsto": st.column_config.DateColumn("Próximo", format="DD/MM/YYYY"),
-                    "estado": "Estado",
-                    "confianca": st.column_config.ProgressColumn("Confiança", min_value=0, max_value=100,
-                                                                 format="%d%%"),
-                },
-            )
-            escolhido = st.selectbox("Ver os movimentos de", tabela["comerciante"].unique().tolist())
-            movimentos = preparar(extrato, nome)
-            # Filtra também pela categoria: "Galp" (luz) e "Galp" (combustível) não se misturam.
-            categorias = tabela.loc[tabela["comerciante"] == escolhido, "categoria"].unique()
-            do_escolhido = movimentos[(movimentos["comerciante"] == escolhido)
-                                      & movimentos["categoria"].isin(categorias)]
-            st.dataframe(do_escolhido[["data", "descricao", "montante"]],
-                         hide_index=True, width="stretch",
-                         column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                                        "descricao": "Descrição",
-                                        "montante": st.column_config.NumberColumn("Valor", format="%.2f €")})
+                tabela = recorrentes.assign(
+                    comerciante=recorrentes["comerciante"].map(sem_sufixo),
+                    confianca=(recorrentes["confianca"] * 100).round(),
+                    estado=[_estado(r) for r in recorrentes.itertuples()])
+                st.dataframe(
+                    tabela[["comerciante", "categoria", "periodicidade", "valor_tipico", "custo_anual",
+                            "custo_real_mensal", "proximo_previsto", "estado", "confianca"]],
+                    hide_index=True, width="stretch",
+                    column_config={
+                        "comerciante": "Serviço", "categoria": "Categoria", "periodicidade": "Frequência",
+                        "valor_tipico": st.column_config.NumberColumn("Valor", format="%.2f €"),
+                        "custo_anual": st.column_config.NumberColumn("Por ano", format="%.2f €"),
+                        "custo_real_mensal": st.column_config.NumberColumn("A tua parte por mês", format="%.2f €"),
+                        "proximo_previsto": st.column_config.DateColumn("Próximo", format="DD/MM/YYYY"),
+                        "estado": "Estado",
+                        "confianca": st.column_config.ProgressColumn("Confiança", min_value=0, max_value=100,
+                                                                     format="%d%%"),
+                    },
+                )
+                escolhido = st.selectbox("Ver os movimentos de", tabela["comerciante"].unique().tolist())
+                saidas = movimentos(extrato, nome)
+                # Filtra também pela categoria: "Galp" (luz) e "Galp" (combustível) não se misturam.
+                categorias = tabela.loc[tabela["comerciante"] == escolhido, "categoria"].unique()
+                do_escolhido = saidas[(saidas["comerciante"] == escolhido) & saidas["categoria"].isin(categorias)]
+                st.dataframe(do_escolhido[["data", "descricao", "montante"]],
+                             hide_index=True, width="stretch",
+                             column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                            "descricao": "Descrição",
+                                            "montante": st.column_config.NumberColumn("Valor", format="%.2f €")})
 
-    with st.expander("Afinar a deteção"):
-        st.toggle("Inverter sinais (se as saídas aparecerem como entradas)", key="inverter_todos")
-        st.slider("Mínimo de pagamentos para um serviço desconhecido", 2, 6, 3, key="p_min")
-        st.slider("Regularidade mínima entre pagamentos", 0.5, 1.0, 0.7, 0.05, key="p_reg")
-        st.slider("Variação máxima do valor", 0.05, 0.5, 0.15, 0.05, key="p_var")
+        with st.expander("Afinar a deteção"):
+            st.toggle("Inverter sinais (se as saídas aparecerem como entradas)", key="inverter_todos")
+            st.slider("Mínimo de pagamentos para um serviço desconhecido", 2, 6, 3, key="p_min")
+            st.slider("Regularidade mínima entre pagamentos", 0.5, 1.0, 0.7, 0.05, key="p_reg")
+            st.slider("Variação máxima do valor", 0.05, 0.5, 0.15, 0.05, key="p_var")
 
-    mostrar_leitura(extrato, ficheiros)
+        mostrar_leitura(extrato, ficheiros)

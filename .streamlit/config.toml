@@ -18,16 +18,18 @@ borderColor = "#CBD4DF"
 showWidgetBorder = true
 baseRadius = "6px"
 buttonRadius = "6px"
-font = "Schibsted Grotesk, sans-serif"
-headingFont = "Schibsted Grotesk, sans-serif"
+# Schibsted Grotesk com algarismos tabulares por omissão, para os valores alinharem em coluna
+# (também nas tabelas, que são desenhadas num canvas). Ver ferramentas/fonte_tabular.py.
+font = "Schibsted Grotesk Tabular, sans-serif"
+headingFont = "Schibsted Grotesk Tabular, sans-serif"
 codeFont = "IBM Plex Mono, monospace"
 headingFontWeights = [800, 700, 700, 600, 600, 600]
 headingFontSizes = ["2.6rem", "1.45rem", "1.15rem", "1rem", "1rem", "1rem"]
 chartCategoricalColors = ["#1B2B44", "#5B6B82", "#9AA7B8", "#C62D2D", "#E0B400"]
 
 [[theme.fontFaces]]
-family = "Schibsted Grotesk"
-url = "app/static/fontes/schibsted-grotesk-latin-wght-normal.woff2"
+family = "Schibsted Grotesk Tabular"
+url = "app/static/fontes/schibsted-grotesk-tabular-latin-wght-normal.woff2"
 weight = "400 900"
 
 [[theme.fontFaces]]
