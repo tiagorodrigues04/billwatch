@@ -7,7 +7,7 @@ import streamlit as st
 
 from contas.energia import POTENCIAS_PADRAO, DadosFatura, comparar, custo_periodo, ler_fatura_pdf
 from contas.recorrentes import euro
-from ui.componentes import Linha, cabecalho, discreto, talao
+from ui.componentes import Linha, cabecalho, discreto, em_euros, talao
 from ui.dados import ofertas_base
 
 cabecalho("A tua luz está cara?",
@@ -100,12 +100,11 @@ else:
             colunas = ["comercializadora", "tarifario", "custo_mensal", "custo_anual", "fidelizacao"]
             if "poupanca_anual" in resultado:
                 colunas.insert(4, "poupanca_anual")
-            st.dataframe(resultado[[c for c in colunas if c in resultado]], hide_index=True, width="stretch",
+            st.dataframe(em_euros(resultado[[c for c in colunas if c in resultado]],
+                                  ["custo_mensal", "custo_anual", "poupanca_anual"]), hide_index=True, width="stretch",
                          column_config={
                              "comercializadora": "Comercializadora", "tarifario": "Tarifário",
-                             "custo_mensal": st.column_config.NumberColumn("Por mês", format="%.2f €"),
-                             "custo_anual": st.column_config.NumberColumn("Por ano", format="%.2f €"),
-                             "poupanca_anual": st.column_config.NumberColumn("Poupança por ano", format="%.2f €"),
+                             "custo_mensal": "Por mês", "custo_anual": "Por ano", "poupanca_anual": "Poupança por ano",
                              "fidelizacao": "Fidelização"})
         if pdf is not None and st.session_state.get("texto_pdf"):
             with st.expander("Ver o texto lido da fatura"):

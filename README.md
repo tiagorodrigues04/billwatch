@@ -80,7 +80,7 @@ cada alteração (separador *Actions*).
 | **PDF** | com grelha ou só texto · colunas Débito/Crédito, "Dinheiro retirado/recebido", "Money out/in" ou um só "Montante" · do mais antigo para o mais recente ou ao contrário · várias secções e páginas · descrições em 2 linhas · data só na 1.ª linha de cada dia · PDFs com letras estragadas (`(cid:231)`) |
 | **Valores** | `1.234,56` `1,234.56` `-9,99` `9,99-` `(9,99)` `+9,99` `9,99 D/C` `€9.99` `9,99 €` `1 234,56` · ou valor positivo com coluna D/C |
 | **Datas** | `05-10-2026` `05/10/26` `05.10.2026` `2026-10-05` `5 out 2026` `5 de out. de 2026` `Oct 5, 2026` · e sem ano (`05.10`), com o ano tirado do período do extrato |
-| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam · com extratos de bancos diferentes, as transferências entre as tuas contas são emparelhadas e não contam como custo |
+| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam, mesmo em formatos diferentes do mesmo banco (o PDF corta descrições, o CSV acrescenta pormenores) · com extratos de bancos diferentes, as transferências entre as tuas contas são emparelhadas e não contam como custo |
 | **Não é um extrato da conta** | extratos de cripto/investimentos (colunas Quantidade/Preço, tickers como BTC, ETH, SOL) são reconhecidos e ficam de fora, com uma explicação |
 
 **Verificação de qualidade.** Cada leitura é verificada antes de entrar na análise: se a
@@ -112,10 +112,10 @@ paginas/
   luz.py                Ler a fatura da luz e comparar ofertas
   sobre.py              Como funciona, em linguagem simples
 ui/
-  estilo.py             Identidade visual (cores, CSS do talão)
-  componentes.py        Peças visuais: talão, passos, gráfico, rodapé
+  estilo.py             Identidade visual (cores, CSS do talão e do talão a cinzento)
+  componentes.py        Peças visuais: talão, talão a cinzento, passos, gráfico, rodapé
   leitura.py            Ler os ficheiros carregados, com plano B se o formato for desconhecido
-  dados.py              Leituras com cache
+  dados.py              Leituras e análise com cache (os cliques não repetem as contas)
 contas/                 A lógica, sem Streamlit (testável à parte)
   texto.py              Ler números e datas escritos de qualquer forma; anonimizar
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
@@ -130,6 +130,8 @@ avaliacao/              Medir a qualidade da deteção
   gerar.py              Extratos fictícios rotulados (cada movimento sabe se é subscrição)
   avaliar.py            Precisão, recall, erro no custo, alertas e os três casos da vida real
 static/                 Logótipo, favicon e fontes (servidos pela própria app)
+ferramentas/
+  fonte_tabular.py      Gera a fonte da interface com algarismos tabulares
 .streamlit/config.toml  Tema: cores, fontes e tamanhos
 dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
 tests/                  Testes da lógica, dos formatos, da interface e da qualidade mínima
@@ -153,6 +155,23 @@ alguma coisa:
 
 Tipos de letra: **Schibsted Grotesk** na interface e **IBM Plex Mono** só dentro do talão.
 São servidos pela própria app (`static/fontes`, licença OFL), sem pedidos a terceiros.
+
+Detalhes que fazem a app parecer mais cuidada:
+- **Algarismos tabulares**: todos os algarismos têm a mesma largura, por isso os valores
+  alinham em coluna (as vírgulas de 577,16 € e de 540,00 € ficam umas por baixo das outras).
+  As tabelas do Streamlit são desenhadas num canvas, onde o CSS `tabular-nums` não chega,
+  por isso a app usa uma cópia da Schibsted Grotesk com os algarismos tabulares por omissão
+  (`ferramentas/fonte_tabular.py`; só mudam os algarismos, a pontuação fica igual).
+- **Euros com vírgula também nas tabelas**: o formato das colunas do Streamlit só escreve
+  "1234.56", por isso as tabelas usam o mesmo formato do talão ("1 234,56 €") através de um
+  `Styler`, e continuam a ordenar pelo valor.
+- **Títulos equilibrados**: os títulos partem-se em linhas de tamanho parecido
+  (`text-wrap: balance`) e os parágrafos não acabam com uma palavra sozinha (`text-wrap: pretty`).
+- **Talão a cinzento**: enquanto os extratos são lidos, aparece a forma do talão no sítio
+  onde ele vai ficar, em vez de um spinner. Sem animação para quem a desligou no sistema.
+- **Cliques rápidos**: o Streamlit volta a correr a página a cada clique; a junção dos
+  extratos, a deteção e o gráfico ficam em cache, por isso um clique no "Corrigir" não repete
+  as contas (com 3 extratos juntos, de 519 ms para 172 ms; com o exemplo, de 202 para 78 ms).
 
 ## Como funciona
 

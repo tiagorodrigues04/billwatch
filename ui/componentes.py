@@ -16,6 +16,17 @@ from .estilo import CORES
 REPOSITORIO = "https://github.com/tiagorodrigues04/billwatch"
 
 
+def em_euros(df: pd.DataFrame, colunas: list[str]):
+    """A tabela com os valores em euros escritos como no talão ("1 234,56 €", com vírgula).
+
+    O formato das colunas do Streamlit (printf) só sabe escrever "1234.56". Com um Styler, a
+    tabela mostra o texto em português mas os valores continuam a ser números: clicar no
+    cabeçalho ordena pelo valor e não pelo texto. Nas column_config destas colunas não se
+    põe "format", senão o Streamlit ignora o Styler.
+    """
+    return df.style.format(euro, subset=[c for c in colunas if c in df], na_rep="")
+
+
 def cabecalho(titulo: str, introducao: str) -> None:
     st.title(titulo, anchor=False)
     st.html(f'<p class="bw-lead">{html.escape(introducao)}</p>')
@@ -34,6 +45,25 @@ def discreto(texto: str) -> None:
 def rodape() -> None:
     st.html(f'<footer class="bw-rodape">BillWatch é um projeto de Ciência de Dados. Os ficheiros são lidos '
             f'em memória e nunca são guardados. <a href="{REPOSITORIO}" target="_blank">Código no GitHub</a>.</footer>')
+
+
+def talao_a_cinzento(onde=st, texto: str = "A ler os extratos…") -> None:
+    """O talão ainda sem dados (um "skeleton"), no sítio onde o talão vai aparecer.
+
+    Mostra-se enquanto os ficheiros são lidos e analisados, em vez de um spinner: a pessoa
+    vê logo a forma do resultado. `onde` é o sítio (ex.: um st.empty() que depois recebe o talão).
+    """
+    def linha(nome: int, valor: int, extra: str = "") -> str:
+        return (f'<div class="bw-t-linha{extra}"><span class="bw-esq" style="width:{nome}%"></span>'
+                f'<span class="bw-t-pontos"></span><span class="bw-esq" style="width:{valor}%"></span></div>')
+
+    linhas = "".join(linha(n, v) for n, v in [(44, 16), (30, 15), (38, 15), (50, 14), (34, 15), (41, 14)])
+    onde.html(
+        '<div class="bw-talao bw-esqueleto" role="status" aria-live="polite" aria-busy="true">'
+        '<div class="bw-t-cab"><span class="bw-esq bw-esq-titulo"></span><span class="bw-esq" style="width:34%"></span>'
+        '<span class="bw-esq" style="width:52%"></span></div>'
+        f'{linhas}<div class="bw-t-sep"></div>{linha(36, 22, " bw-t-total")}'
+        f'<div class="bw-t-rodape">{html.escape(texto)}</div></div>')
 
 
 # ---------------------------------------------------------------------------
@@ -83,8 +113,9 @@ def talao(cabecalho_linhas: list[str], blocos: list[tuple[str | None, list[Linha
 # Gráfico
 # ---------------------------------------------------------------------------
 
-def barras(df: pd.DataFrame, categoria: str, valor: str, titulo_valor: str) -> None:
-    """Barras horizontais de uma só série: tinta, pontas arredondadas, valor no fim de cada barra."""
+@st.cache_data(show_spinner=False, max_entries=32)
+def _especificacao_barras(df: pd.DataFrame, categoria: str, valor: str, titulo_valor: str) -> dict:
+    """O gráfico em Vega-Lite. Em cache: o Altair valida o gráfico todo a cada desenho (~25 ms por clique)."""
     df = df.sort_values(valor, ascending=False).assign(_rotulo=lambda d: d[valor].map(euro))
     maximo = float(df[valor].max()) or 1.0
     base = alt.Chart(df).encode(
@@ -98,5 +129,10 @@ def barras(df: pd.DataFrame, categoria: str, valor: str, titulo_valor: str) -> N
     barras_ = base.mark_bar(color=CORES["tinta"], cornerRadiusEnd=4, height=16)
     rotulos = base.mark_text(align="left", dx=6, color=CORES["grafite"], fontSize=12).encode(text="_rotulo:N")
     grafico = (barras_ + rotulos).properties(height=36 * len(df) + 10).configure_view(stroke=None) \
-        .configure(font="Schibsted Grotesk", background="transparent")
-    st.altair_chart(grafico, width="stretch")
+        .configure(font="Schibsted Grotesk Tabular", background="transparent")
+    return grafico.to_dict()
+
+
+def barras(df: pd.DataFrame, categoria: str, valor: str, titulo_valor: str) -> None:
+    """Barras horizontais de uma só série: tinta, pontas arredondadas, valor no fim de cada barra."""
+    st.vega_lite_chart(_especificacao_barras(df, categoria, valor, titulo_valor), width="stretch")

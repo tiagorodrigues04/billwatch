@@ -448,14 +448,33 @@ def diagnostico_tabela(df: pd.DataFrame, linhas: int = 12) -> str:
     return "\n".join([cabecalho] + corpo)
 
 
+def _descricao_para_comparar(descricao: str) -> str:
+    """'CAFE · SANTA CRUZ' / 'Café Santa Cruz' -> 'CAFE SANTA CRUZ' (sem acentos nem pontuação)."""
+    texto = sem_acentos(corrigir_texto_pdf(str(descricao))).upper()
+    return " ".join(re.sub(r"[^A-Z0-9]+", " ", texto).split())
+
+
+def mesma_descricao(a: str, b: str) -> bool:
+    """Duas descrições do mesmo movimento, escritas por formatos diferentes do mesmo banco.
+
+    Iguais sem pontuação, ou uma começa como a outra: o PDF corta ("...STOCKHO") ou o
+    extrato acrescenta pormenores no fim ("... · Cartão: 5355**1234").
+    """
+    a, b = _descricao_para_comparar(a), _descricao_para_comparar(b)
+    if a == b:
+        return True
+    curta, longa = sorted((a, b), key=len)
+    return len(curta) >= 8 and longa.startswith(curta)
+
+
 def juntar_extratos(extratos: list[pd.DataFrame]) -> pd.DataFrame:
     """Junta vários extratos (ex.: um por mês) num só, sem contar movimentos repetidos.
 
-    Se dois ficheiros se sobrepõem (ex.: ambos têm o dia 1 de março), os movimentos
-    desses dias aparecem nos dois. Não podemos simplesmente apagar linhas iguais,
-    porque dois cafés de 1,20€ no mesmo dia são mesmo dois movimentos. Por isso
-    numeramos as repetições dentro de cada ficheiro (1.º café, 2.º café...) e só
-    apagamos quando o mesmo movimento com o mesmo número aparece noutro ficheiro.
+    Se dois ficheiros se sobrepõem (ex.: ambos têm o dia 1 de março, ou o mesmo mês em PDF
+    e em CSV), os movimentos desses dias aparecem nos dois. Um movimento de outro ficheiro
+    é repetido se tiver o mesmo dia, o mesmo valor e a mesma descrição (ver mesma_descricao:
+    cada formato escreve-a de maneira um pouco diferente). Cada movimento só apaga uma cópia
+    de cada outro ficheiro, porque dois cafés de 1,20 € no mesmo dia são mesmo dois movimentos.
 
     Cada movimento guarda de que ficheiro veio ("origem"). Com extratos de contas
     diferentes (ex.: banco + Revolut), a coluna "entre_contas" marca as transferências
@@ -463,16 +482,26 @@ def juntar_extratos(extratos: list[pd.DataFrame]) -> pd.DataFrame:
     """
     if not extratos:
         return pd.DataFrame(columns=["data", "descricao", "valor"])
-    partes = []
-    for i, df in enumerate(extratos):
-        df = df.copy()
-        df["origem"] = i
-        df["_dia"] = df["data"].dt.normalize()
-        df["_ocorrencia"] = df.groupby(["_dia", "descricao", "valor"]).cumcount()
-        partes.append(df)
-    junto = pd.concat(partes, ignore_index=True)
-    junto = junto.drop_duplicates(subset=["_dia", "descricao", "valor", "_ocorrencia"])
-    junto = junto.drop(columns=["_dia", "_ocorrencia"]).sort_values("data", kind="stable").reset_index(drop=True)
+    junto = pd.concat([df.assign(origem=i) for i, df in enumerate(extratos)], ignore_index=True)
+    dias = junto["data"].dt.normalize()
+    centimos = (junto["valor"] * 100).round().astype("int64")
+
+    # Só interessam os dias e valores que aparecem em mais de um ficheiro.
+    em_varios = junto.groupby([dias, centimos])["origem"].transform("nunique") > 1
+    candidatos = junto[em_varios]
+    repetidos = []
+    for _, grupo in candidatos.groupby([dias[em_varios], centimos[em_varios]], sort=False):
+        ficados: list[tuple[int, str, set]] = []   # (origem, descrição, ficheiros de onde já apagou uma cópia)
+        for i, origem, descricao in zip(grupo.index, grupo["origem"], grupo["descricao"]):
+            igual = next((f for f in ficados if f[0] != origem and origem not in f[2]
+                          and mesma_descricao(f[1], descricao)), None)
+            if igual is None:
+                ficados.append((origem, descricao, set()))
+            else:
+                igual[2].add(origem)
+                repetidos.append(i)
+
+    junto = junto.drop(index=repetidos).sort_values("data", kind="stable").reset_index(drop=True)
     junto["entre_contas"] = marcar_pares(junto)
     return junto
 
