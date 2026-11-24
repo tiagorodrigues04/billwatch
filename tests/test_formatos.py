@@ -145,3 +145,53 @@ def test_mesmo_ficheiro_carregado_duas_vezes_nao_duplica():
 def test_ler_tabela_devolve_tabela_para_o_diagnostico():
     tabela = ler_tabela((PASTA / "c01_pt_debito_credito.csv").read_bytes(), "c01.csv")
     assert {"Descrição", "Débito", "Crédito"} <= set(tabela.columns)
+
+
+# --- o mesmo extrato em formatos diferentes (ex.: o PDF e o CSV do mesmo mês) ---
+
+@pytest.fixture(scope="module")
+def todos_lidos():
+    return {nome: carregar_extrato((PASTA / nome).read_bytes(), nome) for nome in sorted(ESPERADO)}
+
+
+def test_o_mesmo_extrato_em_dois_formatos_da_o_mesmo_talao(todos_lidos):
+    """Juntar o mesmo extrato em dois formatos quaisquer não pode duplicar movimentos.
+
+    Cada formato escreve a descrição à sua maneira ("...STOCKHO" cortado num PDF, "· Cartão: ..."
+    acrescentado noutro). Antes só se apagavam repetidos com a descrição exatamente igual, e
+    os 3 primeiros PDFs juntos davam 2 contas fixas em vez de 8.
+    """
+    from itertools import combinations
+    from contas.extrato import juntar_extratos
+
+    diferentes = []
+    for a, b in combinations(sorted(todos_lidos), 2):
+        r = resumo(detetar_recorrentes(juntar_extratos([todos_lidos[a], todos_lidos[b]])))
+        if (r["n_ativas"], r["mensal"]) != (8, 442.06):
+            diferentes.append((a, b, r["n_ativas"], r["mensal"]))
+    assert not diferentes
+    tres = juntar_extratos([todos_lidos[n] for n in ("p01_grelha.pdf", "p02_texto_colunas.pdf", "p03_revolut.pdf")])
+    assert len(tres) == ESPERADO["p03_revolut.pdf"]["n"]          # os 64 em comum só contam uma vez
+    assert not tres["entre_contas"].any()
+
+
+@pytest.mark.parametrize("a, b, esperado", [
+    ("COMPRA 3442 SPOTIFY P685823118 STOCKHOLM", "COMPRA 3442 SPOTIFY P685823118 STOCKHO", True),   # cortada
+    ("COMPRA 6000 SPOTIFY P98104 STOCKHOLM", "COMPRA 6000 SPOTIFY P98104 STOCKHOLM · Cartão: 535522******1234", True),
+    ("COMPRA 3938 CAFE SANTA CRUZ", "COMPRA 3938 CAFE · SANTA CRUZ", True),            # linha partida no PDF
+    ("Compra Café Central", "COMPRA CAFE CENTRAL", True),                             # acentos e maiúsculas
+    ("COMPRA 3938 CAFE SANTA CRUZ", "COMPRA 1205 CAFE SANTA CRUZ", False),            # outro cartão/compra
+    ("MB WAY", "MB WAY PARA ANA", False),                                             # curta demais para decidir
+])
+def test_mesma_descricao(a, b, esperado):
+    from contas.extrato import mesma_descricao
+    assert mesma_descricao(a, b) is esperado
+
+
+def test_juntar_formatos_diferentes_conta_cada_copia_uma_vez():
+    """Dois cafés iguais no mesmo dia são dois movimentos, mesmo com descrições diferentes por formato."""
+    from contas.extrato import juntar_extratos
+    dia = pd.Timestamp("2026-10-03")
+    pdf = pd.DataFrame({"data": [dia] * 2, "descricao": ["COMPRA 3938 CAFE · SANTA CRUZ"] * 2, "valor": [-1.2] * 2})
+    csv = pd.DataFrame({"data": [dia] * 3, "descricao": ["COMPRA 3938 CAFE SANTA CRUZ"] * 3, "valor": [-1.2] * 3})
+    assert len(juntar_extratos([pdf, csv])) == 3          # 2 do PDF são os mesmos do CSV; o 3.º café fica

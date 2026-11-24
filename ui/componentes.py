@@ -16,6 +16,17 @@ from .estilo import CORES
 REPOSITORIO = "https://github.com/tiagorodrigues04/billwatch"
 
 
+def em_euros(df: pd.DataFrame, colunas: list[str]):
+    """A tabela com os valores em euros escritos como no talão ("1 234,56 €", com vírgula).
+
+    O formato das colunas do Streamlit (printf) só sabe escrever "1234.56". Com um Styler, a
+    tabela mostra o texto em português mas os valores continuam a ser números: clicar no
+    cabeçalho ordena pelo valor e não pelo texto. Nas column_config destas colunas não se
+    põe "format", senão o Streamlit ignora o Styler.
+    """
+    return df.style.format(euro, subset=[c for c in colunas if c in df], na_rep="")
+
+
 def cabecalho(titulo: str, introducao: str) -> None:
     st.title(titulo, anchor=False)
     st.html(f'<p class="bw-lead">{html.escape(introducao)}</p>')

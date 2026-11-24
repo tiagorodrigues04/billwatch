@@ -101,3 +101,13 @@ def test_cliques_no_corrigir_nao_repetem_a_detecao(contador):
     at.multiselect(key="excluir").set_value([opcoes[0]]).run()
     at.multiselect(key="excluir").set_value([]).run()
     assert not at.exception and contador["n"] == 1
+
+
+def test_tabelas_com_euros_como_no_talao():
+    import pandas as pd
+    from ui.componentes import em_euros
+    df = pd.DataFrame({"servico": ["Renda", "Netflix"], "por_ano": [3360.0, 119.88], "valor": [-280.0, None]})
+    tabela = em_euros(df, ["por_ano", "valor", "coluna_que_nao_existe"])
+    html = tabela.to_html()
+    assert "3 360,00 €" in html and "119,88 €" in html and "-280,00 €" in html and "None" not in html
+    assert tabela.data["por_ano"].dtype == float     # continua a ser número: ordena pelo valor, não pelo texto

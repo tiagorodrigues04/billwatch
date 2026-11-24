@@ -80,7 +80,7 @@ cada alteração (separador *Actions*).
 | **PDF** | com grelha ou só texto · colunas Débito/Crédito, "Dinheiro retirado/recebido", "Money out/in" ou um só "Montante" · do mais antigo para o mais recente ou ao contrário · várias secções e páginas · descrições em 2 linhas · data só na 1.ª linha de cada dia · PDFs com letras estragadas (`(cid:231)`) |
 | **Valores** | `1.234,56` `1,234.56` `-9,99` `9,99-` `(9,99)` `+9,99` `9,99 D/C` `€9.99` `9,99 €` `1 234,56` · ou valor positivo com coluna D/C |
 | **Datas** | `05-10-2026` `05/10/26` `05.10.2026` `2026-10-05` `5 out 2026` `5 de out. de 2026` `Oct 5, 2026` · e sem ano (`05.10`), com o ano tirado do período do extrato |
-| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam · com extratos de bancos diferentes, as transferências entre as tuas contas são emparelhadas e não contam como custo |
+| **Limpeza** | movimentos revertidos/recusados saem · só a moeda principal (EUR) · linhas de saldo inicial/final e totais saem · ficheiros repetidos ou sobrepostos não duplicam, mesmo em formatos diferentes do mesmo banco (o PDF corta descrições, o CSV acrescenta pormenores) · com extratos de bancos diferentes, as transferências entre as tuas contas são emparelhadas e não contam como custo |
 | **Não é um extrato da conta** | extratos de cripto/investimentos (colunas Quantidade/Preço, tickers como BTC, ETH, SOL) são reconhecidos e ficam de fora, com uma explicação |
 
 **Verificação de qualidade.** Cada leitura é verificada antes de entrar na análise: se a
@@ -162,6 +162,9 @@ Detalhes que fazem a app parecer mais cuidada:
   As tabelas do Streamlit são desenhadas num canvas, onde o CSS `tabular-nums` não chega,
   por isso a app usa uma cópia da Schibsted Grotesk com os algarismos tabulares por omissão
   (`ferramentas/fonte_tabular.py`; só mudam os algarismos, a pontuação fica igual).
+- **Euros com vírgula também nas tabelas**: o formato das colunas do Streamlit só escreve
+  "1234.56", por isso as tabelas usam o mesmo formato do talão ("1 234,56 €") através de um
+  `Styler`, e continuam a ordenar pelo valor.
 - **Títulos equilibrados**: os títulos partem-se em linhas de tamanho parecido
   (`text-wrap: balance`) e os parágrafos não acabam com uma palavra sozinha (`text-wrap: pretty`).
 - **Talão a cinzento**: enquanto os extratos são lidos, aparece a forma do talão no sítio

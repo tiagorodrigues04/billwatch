@@ -8,7 +8,7 @@ import streamlit as st
 from contas.partilhas import aplicar_partilhas
 from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, confirmados, euro, juntar_linhas,
                                 linha_fixa, resumo, sem_sufixo)
-from ui.componentes import Linha, barras, cabecalho, discreto, passos, talao, talao_a_cinzento
+from ui.componentes import Linha, barras, cabecalho, discreto, em_euros, passos, talao, talao_a_cinzento
 from ui.dados import analisar, csv_exemplo, juntar, ler_extrato, movimentos
 from ui.leitura import ler_ficheiros, mostrar_leitura
 
@@ -281,14 +281,13 @@ else:
                     confianca=(recorrentes["confianca"] * 100).round(),
                     estado=[_estado(r) for r in recorrentes.itertuples()])
                 st.dataframe(
-                    tabela[["comerciante", "categoria", "periodicidade", "valor_tipico", "custo_anual",
-                            "custo_real_mensal", "proximo_previsto", "estado", "confianca"]],
+                    em_euros(tabela[["comerciante", "categoria", "periodicidade", "valor_tipico", "custo_anual",
+                                     "custo_real_mensal", "proximo_previsto", "estado", "confianca"]],
+                             ["valor_tipico", "custo_anual", "custo_real_mensal"]),
                     hide_index=True, width="stretch",
                     column_config={
                         "comerciante": "Serviço", "categoria": "Categoria", "periodicidade": "Frequência",
-                        "valor_tipico": st.column_config.NumberColumn("Valor", format="%.2f €"),
-                        "custo_anual": st.column_config.NumberColumn("Por ano", format="%.2f €"),
-                        "custo_real_mensal": st.column_config.NumberColumn("A tua parte por mês", format="%.2f €"),
+                        "valor_tipico": "Valor", "custo_anual": "Por ano", "custo_real_mensal": "A tua parte por mês",
                         "proximo_previsto": st.column_config.DateColumn("Próximo", format="DD/MM/YYYY"),
                         "estado": "Estado",
                         "confianca": st.column_config.ProgressColumn("Confiança", min_value=0, max_value=100,
@@ -300,11 +299,11 @@ else:
                 # Filtra também pela categoria: "Galp" (luz) e "Galp" (combustível) não se misturam.
                 categorias = tabela.loc[tabela["comerciante"] == escolhido, "categoria"].unique()
                 do_escolhido = saidas[(saidas["comerciante"] == escolhido) & saidas["categoria"].isin(categorias)]
-                st.dataframe(do_escolhido[["data", "descricao", "montante"]],
+                st.dataframe(em_euros(do_escolhido[["data", "descricao", "montante"]], ["montante"]),
                              hide_index=True, width="stretch",
                              column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                             "descricao": "Descrição",
-                                            "montante": st.column_config.NumberColumn("Valor", format="%.2f €")})
+                                            "montante": "Valor"})
 
         with st.expander("Afinar a deteção"):
             st.toggle("Inverter sinais (se as saídas aparecerem como entradas)", key="inverter_todos")

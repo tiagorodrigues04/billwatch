@@ -13,6 +13,7 @@ from contas.extrato import (ExtratoNaoBancario, FormatoDesconhecido, LeituraDuvi
                             problemas_de_leitura, sugerir_mapa)
 from contas.recorrentes import euro
 
+from .componentes import em_euros
 from .dados import diagnostico, ler_extrato
 
 
@@ -129,10 +130,11 @@ def mostrar_leitura(extrato: pd.DataFrame, ficheiros) -> None:
         c2.metric("Saídas", f"{len(saidas)} · {euro(float(-saidas['valor'].sum()))}")
         st.caption("Compara com o teu extrato: as datas, os valores e os sinais (+/-) estão certos? "
                    "Se as entradas e saídas estiverem trocadas, usa **Inverter sinais** em *Afinar a deteção*.")
-        st.dataframe(extrato[["data", "valor", "descricao"]].head(20), hide_index=True, width="stretch",
+        st.dataframe(em_euros(extrato[["data", "valor", "descricao"]].head(20), ["valor"]), hide_index=True,
+                     width="stretch",
                      column_config={"data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                     "descricao": "Descrição",
-                                    "valor": st.column_config.NumberColumn("Valor", format="%.2f €")})
+                                    "valor": "Valor"})
         if ficheiros:
             nomes = [f.name for f in ficheiros]
             escolhido = st.selectbox("Estrutura anónima do ficheiro", nomes, key="diag_ficheiro") if len(nomes) > 1 else nomes[0]
