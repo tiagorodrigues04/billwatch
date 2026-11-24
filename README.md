@@ -15,6 +15,8 @@ Feito em Python (pandas, pdfplumber) e Streamlit.
 
 **▶ Experimenta online: [billwatch-pt.streamlit.app](https://billwatch-pt.streamlit.app/)** (abre com um extrato de exemplo, não é preciso carregar dados reais)
 
+**▶ Ou no teu browser, sem servidor: [tiagorodrigues04.github.io/billwatch](https://tiagorodrigues04.github.io/billwatch/)** (os extratos não saem do computador; a primeira vez pode demorar um minuto a abrir)
+
 <p align="center"><img src="docs/talao.png" alt="Talão do BillWatch com as contas fixas de um extrato de exemplo: renda, luz, MEO, ginásio, ChatGPT, seguro, Netflix com aviso de subida de preço, Spotify com aviso de cobrança repetida e Disney+ riscado por já não ser cobrado" width="420"></p>
 
 ## Resultados
@@ -63,13 +65,34 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 streamlit run app.py               # abre em http://localhost:8501
-pytest                             # ~180 testes
+pytest                             # ~200 testes
 python -m avaliacao.avaliar        # mede a qualidade da deteção
 ```
 
 A app arranca com um **extrato de exemplo** (12 meses fictícios de um estudante), por
 isso dá para experimentar logo sem dados reais. Os testes correm sozinhos no GitHub a
 cada alteração (separador *Actions*).
+
+## Versão no browser
+
+A mesma app corre sem servidor em
+[tiagorodrigues04.github.io/billwatch](https://tiagorodrigues04.github.io/billwatch/). O
+[stlite](https://github.com/whitphx/stlite) põe o Streamlit e o Python a correr dentro da
+página ([Pyodide](https://pyodide.org): Python compilado para WebAssembly), por isso os
+extratos são lidos no browser e **nunca saem do computador**. Da internet só vem código: o
+Python e as bibliotecas, da jsDelivr e do PyPI, na primeira vez que se abre.
+
+A página é gerada por `ferramentas/construir_pagina.py`, que mete o código da app, os dados
+e o tema (com as letras) num único HTML. Sempre que o `main` muda, o GitHub Actions volta a
+gerá-la e publica-a no GitHub Pages (ramo `gh-pages`). Para a gerar à mão:
+
+```bash
+python ferramentas/construir_pagina.py _site    # _site/index.html também abre diretamente do disco
+```
+
+Diferenças em relação à app online: o pdfplumber é instalado sem o pypdfium2 (só serve para
+desenhar páginas como imagem e não existe para o browser), e os textos sobre privacidade
+dizem que os ficheiros não saem do computador.
 
 ## Formatos de extrato suportados
 
@@ -132,12 +155,14 @@ avaliacao/              Medir a qualidade da deteção
 static/                 Logótipo, favicon e fontes (servidos pela própria app)
 ferramentas/
   fonte_tabular.py      Gera a fonte da interface com algarismos tabulares
+  construir_pagina.py   Gera a versão que corre no browser (stlite), para o GitHub Pages
+  pagina.html           Modelo dessa página: ecrã de arranque e arranque do stlite
 .streamlit/config.toml  Tema: cores, fontes e tamanhos
 dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
 tests/                  Testes da lógica, dos formatos, da interface e da qualidade mínima
   cenarios.py           Extratos pequenos com os casos entre contas, anuais e contas divididas
 docs/                   Imagens do README
-.github/workflows/      Corre os testes no GitHub a cada alteração
+.github/workflows/      Corre os testes a cada alteração e publica a versão no browser
 ```
 
 ## Design

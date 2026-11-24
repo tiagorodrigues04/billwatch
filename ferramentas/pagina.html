@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BillWatch</title>
+<meta name="description" content="__DESCRICAO__">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BillWatch">
+<meta property="og:description" content="__DESCRICAO__">
+<meta property="og:url" content="__SITE__">
+<meta property="og:image" content="__IMAGEM__">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/png;base64,__FAVICON__">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@__STLITE__/build/stlite.css">
+<style>
+  /* Ecrã de arranque: aparece enquanto o browser descarrega o Python e prepara a app.
+     Cores do tema do BillWatch (papel, tinta, caneta vermelha). */
+  #arranque {
+    position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; padding: 24px;
+    background: #EEF2F5; color: #1B2B44;
+    font: 16px/1.55 "Schibsted Grotesk Tabular", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  #arranque[hidden] { display: none; }
+  .cartao { width: min(480px, 100%); }
+  .cartao img { height: 34px; display: block; margin-bottom: 32px; }
+  .cartao h1 { font-size: 28px; line-height: 1.1; font-weight: 800; margin: 0 0 8px; text-wrap: balance; }
+  .etapa { margin: 0; min-height: 1.55em; color: #3A4A62; }
+  .barra { height: 4px; border-radius: 2px; background: #CBD4DF; overflow: hidden; margin: 20px 0 8px; }
+  .barra i { display: block; width: 35%; height: 100%; border-radius: 2px; background: #1B2B44; animation: vai 1.4s ease-in-out infinite; }
+  @keyframes vai { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+  @media (prefers-reduced-motion: reduce) { .barra i { animation: none; width: 100%; opacity: .35; } }
+  .tempo { margin: 0 0 28px; font-size: 14px; color: #5B6B82; font-variant-numeric: tabular-nums; }
+  .nota { margin: 0 0 10px; font-size: 14px; color: #3A4A62; text-wrap: pretty; }
+  .erro .barra i { animation: none; width: 100%; background: #C62D2D; }
+  .erro .etapa { color: #C62D2D; }
+  .erro .primeira, .erro .tempo { display: none; }
+  details { margin-top: 16px; font-size: 13px; color: #5B6B82; }
+  details pre { white-space: pre-wrap; word-break: break-word; max-height: 30vh; overflow: auto; }
+</style>
+</head>
+<body>
+<div id="arranque" role="status" aria-live="polite">
+  <div class="cartao">
+    <img id="logo" alt="BillWatch">
+    <h1 id="titulo">A preparar a app no teu browser</h1>
+    <p class="etapa" id="etapa">A começar…</p>
+    <div class="barra"><i></i></div>
+    <p class="tempo" id="tempo">0 s</p>
+    <p class="nota primeira">Na primeira vez pode demorar um minuto, porque o browser descarrega o Python
+      e as bibliotecas. Nas vezes seguintes deve abrir mais depressa.</p>
+    <p class="nota">Tudo corre neste computador: os extratos que carregares não são enviados para lado nenhum.</p>
+    <details id="detalhe" hidden><summary>Detalhes do erro</summary><pre id="detalhe-texto"></pre></details>
+  </div>
+</div>
+<div id="root"></div>
+<script type="application/json" id="ficheiros">__FICHEIROS__</script>
+<script type="module">
+{
+  // BillWatch a correr no browser com stlite (Streamlit + Pyodide). Página gerada por
+  // ferramentas/construir_pagina.py (versão __COMMIT__); não se edita à mão.
+  const STLITE = "__STLITE__";
+  const $ = (id) => document.getElementById(id);
+  const etapa = (texto) => { $("etapa").textContent = texto; };
+
+  // O relógio conta a partir do início (com requestAnimationFrame, só quando a página está à vista).
+  const inicio = performance.now();
+  let parado = false, segundos = -1, pronto = null, avisado = false;
+  const relogio = () => {
+    if (parado) return;
+    const agora = performance.now(), s = Math.floor((agora - inicio) / 1000);
+    if (s !== segundos) { segundos = s; $("tempo").textContent = s + " s"; }
+    if (pronto !== null && agora - pronto > 30000) { esconder(); return; }   // por segurança
+    if (!avisado && s >= 180) {
+      avisado = true;
+      etapa("Está a demorar mais do que o costume. Se não avançar, recarrega a página.");
+    }
+    requestAnimationFrame(relogio);
+  };
+  requestAnimationFrame(relogio);
+
+  const falhou = (titulo, conselho, erro) => {
+    parado = true;
+    $("arranque").hidden = false;
+    $("arranque").classList.add("erro");
+    $("titulo").textContent = titulo;
+    etapa(conselho);
+    if (erro) {
+      $("detalhe").hidden = false;
+      $("detalhe-texto").textContent = String((erro && erro.stack) || erro);
+    }
+  };
+
+  let observador = null;
+  function esconder() {
+    if ($("arranque").classList.contains("erro")) return;
+    parado = true;
+    $("arranque").hidden = true;
+    if (observador) observador.disconnect();
+  }
+
+  // Os ficheiros da app (Python, dados e tema). Os binários vêm em base64.
+  const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const ficheiros = {};
+  for (const [caminho, conteudo] of Object.entries(JSON.parse($("ficheiros").textContent))) {
+    ficheiros[caminho] = typeof conteudo === "string" ? conteudo : bytes(conteudo.b64);
+  }
+  $("logo").src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(ficheiros["static/logo.svg"]);
+
+  // A letra da app já no ecrã de arranque (vem embutida no tema).
+  const letra = /family = "Schibsted Grotesk Tabular"\s*\nurl = "(data:[^"]+)"/.exec(ficheiros[".streamlit/config.toml"]);
+  if (letra && "FontFace" in window) {
+    new FontFace("Schibsted Grotesk Tabular", `url(${letra[1]})`, { weight: "400 900" })
+      .load().then((f) => document.fonts.add(f)).catch(() => {});
+  }
+
+  const ETAPAS = {
+    "Loading Pyodide.": "A descarregar o Python…",
+    "Mounting files.": "A preparar os ficheiros da app…",
+    "Unpacking archives.": "A preparar os ficheiros da app…",
+    "Installing packages.": "A instalar as bibliotecas (pandas, pdfplumber…)…",
+    "Loading streamlit package.": "A arrancar a app…",
+    "Setting up the loggers.": "A arrancar a app…",
+    "Mocking some Streamlit functions for the browser environment.": "A arrancar a app…",
+    "Booting up the Streamlit server.": "A arrancar a app…",
+  };
+
+  let mount = null;
+  try {
+    ({ mount } = await import(`https://cdn.jsdelivr.net/npm/@stlite/browser@${STLITE}/build/stlite.js`));
+  } catch (erro) {
+    falhou("Não consegui descarregar a app",
+           "Confirma que tens ligação à internet e volta a abrir este ficheiro.", erro);
+  }
+
+  if (mount) {
+    // Enquanto arranca, o Streamlit desenha um esqueleto cinzento (stAppSkeleton). A app está pronta
+    // quando aparece o primeiro elemento a sério, o que só pode acontecer depois de o Python carregar.
+    const desenhada = () => [...document.querySelectorAll('[data-testid="stMainBlockContainer"] [data-testid="stElementContainer"]')]
+      .some((el) => el.querySelector('[data-testid]:not([data-testid="stAppSkeleton"])'));
+    const vigiar = () => {
+      if (observador) return;
+      observador = new MutationObserver(() => { if (desenhada()) esconder(); });
+      observador.observe($("root"), { childList: true, subtree: true });
+      if (desenhada()) esconder();
+    };
+
+    const app = mount({
+      entrypoint: "app.py",
+      requirements: __REQUISITOS__,
+      installs: [{ requirements: __SEM_DEPENDENCIAS__, options: { deps: false } }],
+      files: ficheiros,
+      streamlitConfig: { "browser.gatherUsageStats": false },
+      disableProgressToasts: true,
+      disableModuleAutoLoadToasts: true,
+    }, $("root"));
+
+    const kernel = app._kernel;
+    if (!kernel || !kernel.addEventListener) vigiar();
+    else {
+      kernel.addEventListener("loadProgress", (e) => etapa(ETAPAS[e.detail] || "A preparar a app…"));
+      kernel.addEventListener("loadError", (e) =>
+        falhou("A app não conseguiu arrancar",
+               "Confirma que tens ligação à internet e recarrega a página. Se voltar a acontecer, " +
+               "manda os detalhes abaixo.", e.detail));
+      kernel.addEventListener("loadFinished", () => {
+        etapa("Quase pronto…");
+        pronto = performance.now();   // se a app demorar a desenhar-se, o relógio esconde isto
+        vigiar();
+      });
+    }
+  }
+}
+</script>
+</body>
+</html>
