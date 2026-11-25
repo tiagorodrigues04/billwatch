@@ -1,0 +1,39 @@
+name: Página no browser
+
+# Sempre que o main muda, volta a gerar a página que corre a app no browser
+# (ferramentas/construir_pagina.py) e publica-a no ramo gh-pages, de onde o
+# GitHub Pages a serve em https://tiagorodrigues04.github.io/billwatch/.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pagina
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Gerar a página
+        run: python ferramentas/construir_pagina.py _site
+      - name: Publicar no ramo gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd _site
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Página gerada a partir de ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
