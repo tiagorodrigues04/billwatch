@@ -35,7 +35,9 @@ def ficheiros(html):
 
 def test_leva_todo_o_codigo_da_app(ficheiros):
     esperados = {p.relative_to(RAIZ).as_posix() for pasta in ("contas", "ui", "paginas") for p in (RAIZ / pasta).glob("*.py")}
-    assert esperados | {"app.py", "dados/ofertas_luz.csv", "static/logo.svg", ".streamlit/config.toml"} <= set(ficheiros)
+    assert esperados | {"app.py", "dados/ofertas_luz.csv", "dados/precos_supermercados.csv", "static/logo.svg",
+                        ".streamlit/config.toml"} <= set(ficheiros)
+    assert "paginas/supermercado.py" in ficheiros
     for nome in ("app.py", "contas/extrato.py", "paginas/subscricoes.py"):
         assert ficheiros[nome].splitlines()[0] == (RAIZ / nome).read_text(encoding="utf-8").splitlines()[0]
 

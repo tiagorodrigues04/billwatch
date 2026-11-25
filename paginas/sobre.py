@@ -47,6 +47,15 @@ st.markdown(
     "reconhecido, a app mostra a tabela e pedes-lhe tu que coluna é qual. Extratos de cripto ou de "
     "investimentos ficam de fora, porque não têm pagamentos de contas.")
 
+st.subheader("O supermercado", anchor=False)
+st.markdown(
+    "O extrato diz onde compraste e quanto, mas não o quê. Por isso a página do supermercado mostra "
+    "o que dá para saber com ele: quanto gastas por mês e em que cadeias, quantas idas fazes e quanto "
+    "somam as idas pequenas, abaixo de 10 €. As bombas de gasolina das cadeias ficam de fora e as "
+    "devoluções descontam. Para saber se mudar de cadeia compensa, a app usa o índice de preços que a "
+    "DECO PROteste publica todos os anos para os supermercados online, que é uma média para um cabaz "
+    "grande e não o teu carrinho.")
+
 st.subheader("A luz", anchor=False)
 st.markdown(
     "O custo de cada oferta é o termo fixo vezes os dias, mais o preço da energia vezes o consumo. "

@@ -10,6 +10,7 @@ from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, 
                                 linha_fixa, resumo, sem_sufixo)
 from ui.componentes import Linha, barras, cabecalho, discreto, em_euros, passos, talao, talao_a_cinzento
 from ui.dados import analisar, csv_exemplo, juntar, ler_extrato, movimentos
+from ui.extratos import CARREGADOR, esquecer_ficheiros, ficheiros_guardados, guardar_ficheiros, publicar
 from ui.leitura import ler_ficheiros, mostrar_leitura
 
 FORMATOS = ["csv", "txt", "xlsx", "xls", "pdf"]
@@ -201,8 +202,14 @@ passos([("Exporta os extratos", "Na app ou no site do banco, em CSV, Excel ou PD
         ("Carrega-os aqui", "Podes juntar vários ficheiros, e até extratos de bancos diferentes."),
         ("Lê o teu talão", "Quanto pagas por mês, o que subiu de preço e o que podes cancelar.")])
 
-ficheiros = st.file_uploader("Extratos do banco", type=FORMATOS, accept_multiple_files=True,
-                             help="CSV, Excel ou PDF. Podes escolher vários de uma vez.")
+carregados = st.file_uploader("Extratos do banco", type=FORMATOS, accept_multiple_files=True, key=CARREGADOR,
+                              on_change=guardar_ficheiros, help="CSV, Excel ou PDF. Podes escolher vários de uma vez.")
+ficheiros = carregados or ficheiros_guardados()
+if ficheiros and not carregados:
+    # Voltou de outra página: o carregador aparece vazio, mas os ficheiros continuam na sessão.
+    guardados = st.container(horizontal=True, vertical_alignment="center", gap="small")
+    guardados.caption(f"A usar {_lista_de_nomes([f.name for f in ficheiros])}, que carregaste antes.")
+    guardados.button("Tirar", on_click=esquecer_ficheiros, type="tertiary", icon=":material/close:")
 discreto("Os ficheiros são lidos em memória e nunca são guardados.")
 linha = st.container(horizontal=True, vertical_alignment="center", gap="medium")
 usar_exemplo = not ficheiros and linha.toggle("Ver com dados de exemplo", value=True)
@@ -230,11 +237,13 @@ else:
 
 if extrato is None or extrato.empty:
     zona.empty()
+    publicar(None, exemplo=False, ficheiros=0)
 else:
     # Afinações (os controlos estão mais abaixo; aqui lê-se o valor escolhido)
     estado = st.session_state
     if estado.get("inverter_todos"):
         extrato = extrato.assign(valor=-extrato["valor"])
+    publicar(extrato, exemplo=usar_exemplo and not ficheiros, ficheiros=n_lidos)   # para a página Supermercado
     nome = (estado.get("nome_titular") or "").strip()
     recorrentes, possiveis, partilhas = analisar(extrato, estado.get("p_min", 3), estado.get("p_reg", 0.7),
                                                  estado.get("p_var", 0.15), nome)

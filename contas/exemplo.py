@@ -9,6 +9,8 @@ Inclui de propósito:
 - um seguro semestral
 - uma cobrança duplicada (Spotify)
 - ruído: supermercado, cafés, Uber, rendimentos
+Com supermercados=True junta as compras de uma casa de estudantes: idas pequenas ao Pingo Doce,
+a compra da semana no Lidl e, de vez em quando, o Mercadona e o Minipreço (é o exemplo da app).
 Tudo é inventado: nomes, valores e referências.
 """
 
@@ -24,8 +26,11 @@ def _dia(ano: int, mes: int, dia: int) -> pd.Timestamp:
     return pd.Timestamp(year=ano, month=mes, day=min(dia, ultimo.day))
 
 
-def gerar_extrato(fim: str = "2026-11-15", meses: int = 12, semente: int = 42) -> pd.DataFrame:
+def gerar_extrato(fim: str = "2026-11-15", meses: int = 12, semente: int = 42,
+                  supermercados: bool = False) -> pd.DataFrame:
     rng = random.Random(semente)
+    # As compras do supermercado têm o seu próprio sorteio: ligá-las não muda mais nenhum movimento.
+    sorteio = random.Random(semente + 1)
     fim_ts = pd.Timestamp(fim)
     inicio = (fim_ts - pd.DateOffset(months=meses - 1)).replace(day=1)
     movimentos: list[tuple[pd.Timestamp, str, float]] = []
@@ -63,6 +68,19 @@ def gerar_extrato(fim: str = "2026-11-15", meses: int = 12, semente: int = 42) -
             add(rng.randint(1, 28), "COMPRA UBER *TRIP HELP.UBER.COM", -round(rng.uniform(4, 14), 2))
         if rng.random() < 0.3:
             add(rng.randint(1, 28), "TRF MB WAY DE AMIGO", round(rng.uniform(5, 30), 2))
+        if supermercados:
+            for _ in range(sorteio.randint(5, 9)):     # o Pingo Doce ao pé de casa: pão, leite, fruta
+                add(sorteio.randint(1, 28), f"COMPRA {sorteio.randint(1000, 9999)} PINGO DOCE COIMBRA",
+                    -round(sorteio.uniform(1.5, 8.5), 2))
+            for _ in range(sorteio.randint(1, 3)):     # a compra da semana no Lidl
+                add(sorteio.randint(1, 28), f"COMPRA {sorteio.randint(1000, 9999)} LIDL COIMBRA",
+                    -round(sorteio.uniform(15, 38), 2))
+            if sorteio.random() < 0.4:                 # o Mercadona, de vez em quando
+                add(sorteio.randint(1, 28), f"COMPRA {sorteio.randint(1000, 9999)} MERCADONA COIMBRA",
+                    -round(sorteio.uniform(20, 40), 2))
+            for _ in range(sorteio.randint(0, 2)):     # o Minipreço da esquina
+                add(sorteio.randint(1, 28), f"COMPRA {sorteio.randint(1000, 9999)} MINIPRECO COIMBRA",
+                    -round(sorteio.uniform(4, 16), 2))
 
     df = pd.DataFrame(movimentos, columns=["data", "descricao", "valor"])
     df = df[df["data"] <= fim_ts]
