@@ -7,8 +7,9 @@ Carregas o extrato do banco e a app encontra sozinha as subscrições e contas f
 quando um preço sobe, quando há uma cobrança duplicada ou quando um serviço parou de
 ser cobrado. Não conta como custo o dinheiro que só muda de conta (carregar a Revolut),
 desconta o que os colegas de casa te pagam da renda ou da internet e guarda para
-confirmares os pagamentos que só aparecem uma vez por ano. Também lê a fatura da luz em
-PDF e compara-a com outras ofertas.
+confirmares os pagamentos que só aparecem uma vez por ano. Com os mesmos extratos, mostra
+quanto gastas no supermercado, em que cadeias e quanto pesam as idas pequenas. Também lê
+a fatura da luz em PDF e compara-a com outras ofertas.
 
 Inspirado no Rocket Money (EUA), adaptado a bancos e serviços portugueses.
 Feito em Python (pandas, pdfplumber) e Streamlit.
@@ -132,6 +133,7 @@ Para acrescentar um formato novo: imitá-lo em `tests/gerar_formatos.py` e corre
 app.py                  Configuração, estilo e navegação entre páginas
 paginas/
   subscricoes.py        Carregar extratos e ver o talão das contas fixas
+  supermercado.py       Quanto gastas no supermercado, com os mesmos extratos
   luz.py                Ler a fatura da luz e comparar ofertas
   sobre.py              Como funciona, em linguagem simples
 ui/
@@ -139,6 +141,7 @@ ui/
   componentes.py        Peças visuais: talão, talão a cinzento, passos, gráfico, rodapé
   leitura.py            Ler os ficheiros carregados, com plano B se o formato for desconhecido
   dados.py              Leituras e análise com cache (os cliques não repetem as contas)
+  extratos.py           Os extratos carregados, partilhados entre as páginas
 contas/                 A lógica, sem Streamlit (testável à parte)
   texto.py              Ler números e datas escritos de qualquer forma; anonimizar
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante
@@ -147,6 +150,7 @@ contas/                 A lógica, sem Streamlit (testável à parte)
   recorrentes.py        Deteção de pagamentos recorrentes + alertas; "A confirmar" (anuais)
   entre_contas.py       Dinheiro que só muda de conta: nome do titular e pares entre extratos
   partilhas.py          Contas divididas: quem te paga parte de uma conta, e a tua parte
+  supermercados.py      Compras por cadeia, idas pequenas e o índice de preços da DECO
   energia.py            Fatura da luz e comparação de ofertas
   exemplo.py            Extrato fictício da demo e dos testes
 avaliacao/              Medir a qualidade da deteção
@@ -158,7 +162,8 @@ ferramentas/
   construir_pagina.py   Gera a versão que corre no browser (stlite), para o GitHub Pages
   pagina.html           Modelo dessa página: ecrã de arranque e arranque do stlite
 .streamlit/config.toml  Tema: cores, fontes e tamanhos
-dados/                  Ofertas de luz (VALORES DE EXEMPLO) e uma fatura fictícia
+dados/                  Ofertas de luz (VALORES DE EXEMPLO), índice de preços dos supermercados
+                        (DECO PROteste, 2025) e uma fatura fictícia
 tests/                  Testes da lógica, dos formatos, da interface e da qualidade mínima
   cenarios.py           Extratos pequenos com os casos entre contas, anuais e contas divididas
 docs/                   Imagens do README
@@ -315,7 +320,26 @@ desconto.
 É uma heurística simples e explicável, e um ponto de partida para um modelo treinado
 com dados rotulados (ver [Próximos passos](#próximos-passos)).
 
-### 9. Luz (`energia.py`)
+### 9. Supermercado (`supermercados.py`)
+O extrato diz onde se comprou e quanto, mas não o quê. Por isso a página mostra o que dá
+para saber com ele: o gasto por mês e por cadeia, quantas idas, o valor médio de cada ida e
+quanto somam as **idas pequenas** (abaixo de 10 €, ajustável). As cadeias são reconhecidas
+pela descrição (Continente, Pingo Doce, Lidl, Mercadona, Aldi, Auchan, Intermarché,
+Minipreço…); as bombas de gasolina das cadeias ficam de fora e as devoluções descontam. As
+médias usam o período todo do extrato, e o gráfico só mostra os meses completos.
+
+**Mudar de cadeia compensa?** Para isso usa-se o índice anual de preços dos supermercados
+online da [DECO PROteste](https://www.deco.proteste.pt/familia-consumo/supermercado/noticias/supermercado-online-lidera-ranking-precos-baixos)
+(`dados/precos_supermercados.csv`; em 2025, Continente = 100 e Minipreço = 104):
+`poupança = gasto na cadeia × (1 − índice da mais barata ÷ índice da cadeia)`. O Lidl, o
+Aldi e o Mercadona não entram no estudo. No exemplo, mudar de cadeia poupava 0,60 € por mês,
+e a app responde isso mesmo: "Quase nada".
+
+Os extratos carregam-se uma vez, em Contas fixas, e ficam na sessão (`ui/extratos.py`): o
+Streamlit esquece o que um widget tinha quando se muda de página, por isso os ficheiros são
+guardados à parte e a página do supermercado usa o extrato já lido.
+
+### 10. Luz (`energia.py`)
 `custo = termo fixo (€/dia) × dias + preço (€/kWh) × consumo (kWh)`, convertido para
 um mês médio de 30,4 dias. Comparamos antes de IVA e taxas porque essas são
 praticamente iguais em todas as comercializadoras e não mudam o ranking.
@@ -362,6 +386,12 @@ falha se a precisão descer de 95% ou o recall de 97%.
   disso. A leitura da fatura e as contas são reais; para comparar com preços atuais
   pode carregar-se uma tabela própria.
 - A leitura de faturas de luz é "melhor esforço": cada comercializadora tem o seu layout.
+- **No supermercado, o extrato não diz o que se comprou**, por isso não dá para saber se o
+  mesmo carrinho ficava mais barato noutra cadeia. O índice da DECO é a média de um cabaz de
+  mais de 200 produtos, com preços online, e não inclui o Lidl, o Aldi nem o Mercadona.
+  Uma compra no El Corte Inglés fica de fora, porque não se distingue o supermercado do resto
+  da loja. O passo seguinte é ler as faturas eletrónicas (Continente, Lidl Plus), que têm os
+  produtos.
 - **Sem o nome do titular**, uma transferência para outra conta tua conta como custo, e uma
   mesada da família perto do dia da renda pode passar por uma parte da renda. A app mostra
   quem "paga parte" de cada conta para se poder desligar.

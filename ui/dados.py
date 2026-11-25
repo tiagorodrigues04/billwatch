@@ -16,11 +16,12 @@ from contas.extrato import carregar_extrato, diagnostico_tabela, juntar_extratos
 from contas.leitor_pdf import diagnostico_pdf
 from contas.partilhas import detetar_partilhas
 from contas.recorrentes import Parametros, detetar_recorrentes, possiveis_subscricoes, preparar
+from contas.supermercados import Resumo, compras, indices_de_precos, meses_cobertos, por_mes, resumir
 
 
 @st.cache_data(show_spinner=False)
 def csv_exemplo() -> bytes:
-    return extrato_csv_banco(gerar_extrato())
+    return extrato_csv_banco(gerar_extrato(supermercados=True))
 
 
 @st.cache_data(show_spinner=False)   # enquanto lê, a página mostra o talão a cinzento
@@ -65,3 +66,15 @@ def diagnostico(conteudo: bytes, nome: str) -> dict:
 @st.cache_data(show_spinner=False)
 def ofertas_base() -> pd.DataFrame:
     return carregar_ofertas()
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def supermercado(extrato: pd.DataFrame, limite: float) -> tuple[pd.DataFrame, Resumo, pd.DataFrame]:
+    """As compras em supermercados, as médias por mês e o gasto de cada mês."""
+    tabela = compras(extrato)
+    return tabela, resumir(tabela, meses_cobertos(extrato), limite), por_mes(tabela, extrato)
+
+
+@st.cache_data(show_spinner=False)
+def indices_supermercados() -> pd.DataFrame:
+    return indices_de_precos()

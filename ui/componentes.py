@@ -136,3 +136,34 @@ def _especificacao_barras(df: pd.DataFrame, categoria: str, valor: str, titulo_v
 def barras(df: pd.DataFrame, categoria: str, valor: str, titulo_valor: str) -> None:
     """Barras horizontais de uma só série: tinta, pontas arredondadas, valor no fim de cada barra."""
     st.vega_lite_chart(_especificacao_barras(df, categoria, valor, titulo_valor), width="stretch")
+
+
+MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def _especificacao_meses(df: pd.DataFrame, valor: str, titulo_valor: str) -> dict:
+    df = df.assign(_mes=[f"{MESES[d.month - 1]} {d:%y}" for d in df["mes"]],
+                   _rotulo=[f"{v:.0f}" for v in df[valor]],     # sem "€": no telemóvel as colunas são estreitas
+                   _dica=df[valor].map(euro))
+    maximo = float(df[valor].max()) or 1.0
+    base = alt.Chart(df).encode(
+        x=alt.X("_mes:N", sort=df["_mes"].tolist(), title=None,
+                axis=alt.Axis(labelColor=CORES["grafite"], labelFontSize=12, labelAngle=0, labelOverlap=True,
+                              ticks=False, domain=False)),
+        y=alt.Y(f"{valor}:Q", title=None, axis=None, scale=alt.Scale(domain=[0, maximo * 1.2], nice=False)),
+        tooltip=[alt.Tooltip("_mes:N", title="Mês"), alt.Tooltip("_dica:N", title=titulo_valor)],
+    )
+    colunas = base.mark_bar(color=CORES["tinta"], cornerRadiusEnd=4, width={"band": 0.62})
+    rotulos = base.mark_text(baseline="bottom", dy=-4, color=CORES["grafite"], fontSize=10.5).encode(text="_rotulo:N")
+    grafico = (colunas + rotulos).properties(height=220).configure_view(stroke=None) \
+        .configure(font="Schibsted Grotesk Tabular", background="transparent")
+    return grafico.to_dict()
+
+
+def colunas_por_mes(df: pd.DataFrame, valor: str, titulo_valor: str) -> None:
+    """Colunas mês a mês ("dez 25", "jan 26"…), com o valor arredondado por cima.
+
+    `df["mes"]` é o primeiro dia de cada mês.
+    """
+    st.vega_lite_chart(_especificacao_meses(df, valor, titulo_valor), width="stretch")

@@ -102,3 +102,44 @@ def test_dividir_a_mao_e_recusar_uma_parte_detetada(app_tres_casos):
     assert not at.exception
     t = _talao(at)
     assert "dividida por 4: a tua parte é 10,00 €" in t and "Partes pagas por outros −30,00 €" in t
+
+
+# --- supermercado e extratos partilhados entre as páginas ------------------------------
+
+def test_pagina_do_supermercado_com_o_exemplo(app):
+    app.switch_page("paginas/supermercado.py").run()
+    assert not app.exception
+    assert app.title[0].value == "Quanto gastas no supermercado?"
+    assert {"O talão do exemplo", "Mês a mês", "Mudar de cadeia compensa?"} <= {s.value for s in app.subheader}
+    t = _talao(app)
+    assert "Total por mês 240,17 €" in t and "Idas pequenas, abaixo de 10 €" in t
+    assert any(m.value.startswith("Quase nada.") for m in app.markdown)
+
+
+def test_supermercado_usa_o_extrato_carregado_em_contas_fixas(app):
+    import pandas as pd
+    from ui.extratos import ExtratoPublicado
+    extrato = pd.DataFrame({"data": pd.to_datetime(["2026-03-01", "2026-03-20", "2026-04-28"]),
+                            "descricao": ["COMPRA PINGO DOCE", "COMPRA MINIPRECO", "COMPRA LIDL"],
+                            "valor": [-5.0, -52.0, -40.0]})
+    app.session_state["_extrato_publicado"] = ExtratoPublicado(extrato, exemplo=False, ficheiros=2)
+    app.switch_page("paginas/supermercado.py").run()
+    assert not app.exception
+    assert "O teu talão" in [s.value for s in app.subheader]
+    t = _talao(app)
+    assert "3 compras" in t and "Minipreço" in t and "Exemplo" not in t
+
+
+def test_ao_voltar_de_outra_pagina_os_ficheiros_continuam(app):
+    """O carregador esvazia-se ao mudar de página, mas os ficheiros guardados na sessão continuam a contar."""
+    from contas.exemplo import extrato_csv_banco, gerar_extrato
+    from ui.extratos import FicheiroGuardado
+    dados = extrato_csv_banco(gerar_extrato(meses=4))
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("extrato.csv", len(dados), "id-1", dados)]
+    app.switch_page("paginas/luz.py").run()
+    app.switch_page("paginas/subscricoes.py").run()
+    assert not app.exception
+    assert "O teu talão" in [s.value for s in app.subheader]
+    assert any("A usar extrato.csv, que carregaste antes." in c.value for c in app.caption)
+    next(b for b in app.button if b.label == "Tirar").click().run()
+    assert "O talão do exemplo" in [s.value for s in app.subheader]

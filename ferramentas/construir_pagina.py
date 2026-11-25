@@ -35,7 +35,7 @@ REQUISITOS = ["pdfminer.six==20260107", "python-calamine", "lxml"]
 # como imagem (a app não usa). Instala-se sem dependências, depois de o Python carregar.
 SEM_DEPENDENCIAS = ["pdfplumber==0.11.10"]
 
-FICHEIROS = ["app.py", "contas/*.py", "ui/*.py", "paginas/*.py", "dados/ofertas_luz.csv",
+FICHEIROS = ["app.py", "contas/*.py", "ui/*.py", "paginas/*.py", "dados/*.csv",
              "static/logo.svg", "static/favicon.png", "static/fontes/LICENCA-*.txt"]
 BINARIOS = (".png",)
 
