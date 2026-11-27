@@ -8,8 +8,8 @@ from __future__ import annotations
 import streamlit as st
 
 from contas.recorrentes import euro
-from contas.supermercados import CADEIAS, LIMITE_IDA_PEQUENA, mais_barata, mudar_de_cadeia
-from ui.componentes import Linha, cabecalho, colunas_por_mes, discreto, em_euros, talao
+from contas.supermercados import CADEIAS, DIAS_POR_MES, LIMITE_IDA_PEQUENA, mais_barata, mudar_de_cadeia
+from ui.componentes import Linha, cabecalho, contagem, colunas_por_mes, discreto, em_euros, talao
 from ui.dados import csv_exemplo, indices_supermercados, ler_extrato, supermercado
 from ui.extratos import extrato_publicado
 
@@ -56,14 +56,14 @@ else:
 limite = float(st.session_state.get("limite_ida_pequena", LIMITE_IDA_PEQUENA))
 tabela, resumo, meses = supermercado(extrato, limite)
 
-if tabela.empty:
+if not (tabela["montante"] > 0).any():   # sem compras (vazio, ou só devoluções): não há médias a mostrar
     st.info("Não encontrei compras em supermercados nestes extratos. Reconheço estas cadeias: "
             + ", ".join(CADEIAS) + ".", icon=":material/shopping_cart:")
 else:
     st.divider()
     st.subheader("O talão do exemplo" if exemplo else "O teu talão", anchor=False)
     if resumo.meses < 1:
-        st.info(f"Os extratos cobrem só {round(resumo.meses * 30.4)} dias: os valores por mês são uma estimativa.")
+        st.info(f"Os extratos cobrem só {contagem(round(resumo.meses * DIAS_POR_MES), 'dia')}: os valores por mês são uma estimativa.")
 
     compras_feitas = int((tabela["montante"] > 0).sum())
     linhas = [Linha(r.cadeia, euro(r.gasto_mensal),
@@ -81,7 +81,7 @@ else:
                               nota=f"{parte:.0%} do que gastas no supermercado")]))
     talao(["BillWatch", "Supermercado",
            f"{extrato['data'].min():%d/%m/%Y} a {extrato['data'].max():%d/%m/%Y}",
-           "Exemplo com dados fictícios" if exemplo else f"{compras_feitas} compras"],
+           "Exemplo com dados fictícios" if exemplo else contagem(compras_feitas, "compra")],
           blocos, "Médias por mês. As devoluções descontam; as bombas de gasolina das cadeias ficam de fora.")
 
     if len(meses) >= 2:

@@ -111,3 +111,17 @@ def test_tabelas_com_euros_como_no_talao():
     html = tabela.to_html()
     assert "3 360,00 €" in html and "119,88 €" in html and "-280,00 €" in html and "None" not in html
     assert tabela.data["por_ano"].dtype == float     # continua a ser número: ordena pelo valor, não pelo texto
+
+
+def test_contagem_no_singular_e_no_plural():
+    from ui.componentes import contagem
+    assert contagem(1, "dia") == "1 dia"
+    assert contagem(0, "dia") == "0 dias"
+    assert contagem(12, "compra") == "12 compras"
+    assert contagem(2, "mês", "meses") == "2 meses"
+
+
+def test_diagnostico_de_um_pdf_danificado_nao_rebenta():
+    from contas.leitor_pdf import diagnostico_pdf
+    info = diagnostico_pdf(b"%PDF-1.4 isto nao e um pdf")
+    assert info["erro"] and info["texto"] == ""

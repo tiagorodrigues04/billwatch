@@ -6,7 +6,7 @@ import streamlit as st
 
 from contas.energia import POTENCIAS_PADRAO, DadosFatura, comparar, custo_periodo, ler_fatura_pdf, ler_ofertas
 from contas.recorrentes import euro
-from ui.componentes import Linha, cabecalho, discreto, em_euros, talao
+from ui.componentes import Linha, cabecalho, contagem, discreto, em_euros, talao
 from ui.dados import ofertas_base
 
 cabecalho("A tua luz está cara?",
@@ -99,7 +99,7 @@ else:
         fonte = ("Ofertas da tua tabela" if proprio is not None else
                  "Ofertas de exemplo, não são preços reais")
         kva = f"{potencia:g}".replace(".", ",")
-        talao(["BillWatch", "Fatura da luz", f"{consumo:g} kWh em {dias} dias, {kva} kVA", fonte], blocos,
+        talao(["BillWatch", "Fatura da luz", f"{consumo:g} kWh em {contagem(dias, 'dia')}, {kva} kVA", fonte], blocos,
               "Valores antes de IVA e taxas, que são quase iguais em todas as comercializadoras.")
         if custo_atual is None:
             discreto("Escreve o preço da energia e o termo fixo da tua fatura para saber quanto poupavas.")
