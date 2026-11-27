@@ -13,6 +13,7 @@ from contas.extrato import (ExtratoNaoBancario, FormatoDesconhecido, LeituraDuvi
                             problemas_de_leitura, sugerir_mapa)
 from contas.recorrentes import euro
 
+from . import telemetria
 from .componentes import contagem, em_euros
 from .dados import diagnostico, ler_extrato
 
@@ -94,26 +95,39 @@ def leitura_duvidosa(f, erro: LeituraDuvidosa) -> pd.DataFrame | None:
     return erro.extrato if usar else None
 
 
+def _nao_lido(f, motivo: str) -> None:
+    """Estatística anónima: um ficheiro que não foi lido sozinho, e porquê (só uma vez por ficheiro)."""
+    if telemetria.uma_vez(f"nao_lido:{f.file_id}"):
+        telemetria.registar("ficheiro_nao_lido", motivo=motivo, formato=telemetria.formato(f.name))
+
+
 def ler_ficheiros(ficheiros) -> list[pd.DataFrame]:
     lidos = []
     for f in ficheiros:
         try:
             lidos.append(ler_extrato(f.getvalue(), f.name))
         except ExtratoNaoBancario as erro:
+            _nao_lido(f, "investimentos")
             st.info(f"📈 **{f.name}** — {erro}")
         except LeituraDuvidosa as erro:
+            _nao_lido(f, "leitura_duvidosa")
             df = leitura_duvidosa(f, erro)
             if df is not None:
                 lidos.append(df)
         except FormatoDesconhecido as erro:
+            _nao_lido(f, "formato_desconhecido")
             df = escolher_colunas(f, erro.tabela)
             if df is not None:
                 lidos.append(df)
         except ValueError as erro:
+            _nao_lido(f, "nao_abriu")
             st.error(f"**{f.name}** — {erro}")
             with st.expander("Ver a estrutura anónima deste ficheiro"):
                 estrutura_anonima(f)
-        except Exception:  # noqa: BLE001  (nunca mostrar um erro técnico ao utilizador)
+        except Exception as erro:  # noqa: BLE001  (nunca mostrar um erro técnico ao utilizador)
+            _nao_lido(f, "erro_inesperado")
+            if telemetria.uma_vez(f"erro:{f.file_id}"):   # um bug do leitor: é isto que interessa corrigir
+                telemetria.registar_erro(erro, "ler_ficheiro", formato=telemetria.formato(f.name))
             st.error(f"**{f.name}** — não consegui ler este ficheiro. Confirma que é um extrato em CSV, "
                      "Excel ou PDF exportado do banco.")
             with st.expander("Ver a estrutura anónima deste ficheiro"):
