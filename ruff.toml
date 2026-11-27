@@ -1,0 +1,13 @@
+# Verificação do estilo e de erros comuns (corre na CI: ruff check .)
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "SIM"]
+ignore = [
+    "E501",   # linhas compridas: o projeto usa linhas até ~120 e deixa algumas passar
+    "E741",   # "l" como nome de linha em compreensões curtas
+    "B905",   # zip() sem strict=: as listas têm sempre o mesmo tamanho por construção
+    "B023",   # funções definidas num ciclo e usadas logo ali (falsos positivos)
+    "SIM105", # try/except/pass é mais claro do que contextlib.suppress para quem lê
+]

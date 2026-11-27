@@ -21,7 +21,12 @@ def _numero(x: float) -> str:
 
 
 def _frequencia(idas_por_mes: float) -> str:
-    """3.7 -> "3,7 idas por mês"; 1.0 -> "1 ida por mês"; 0.43 -> "1 ida a cada 2 meses"."""
+    """3.7 -> "3,7 idas por mês"; 1.0 -> "1 ida por mês"; 0.43 -> "1 ida a cada 2 meses"; 0 -> "só devoluções".
+
+    Uma cadeia pode ter só devoluções (a compra foi antes do início do extrato): 0 idas.
+    """
+    if idas_por_mes <= 0:
+        return "só devoluções"
     if idas_por_mes < 1 and round(1 / idas_por_mes) >= 2:
         return f"1 ida a cada {round(1 / idas_por_mes)} meses"
     numero = _numero(max(idas_por_mes, 1.0))
@@ -62,7 +67,8 @@ else:
 
     compras_feitas = int((tabela["montante"] > 0).sum())
     linhas = [Linha(r.cadeia, euro(r.gasto_mensal),
-                    nota=f"{_frequencia(r.idas_mensal)}, {euro(r.valor_medio)} em média")
+                    nota=f"{_frequencia(r.idas_mensal)}, {euro(r.valor_medio)} em média" if r.idas_mensal > 0
+                    else _frequencia(r.idas_mensal))
               for r in resumo.por_cadeia.itertuples()]
     blocos = [(None, linhas), ("---", []),
               (None, [Linha("Total por mês", euro(resumo.gasto_mensal), "total"),
