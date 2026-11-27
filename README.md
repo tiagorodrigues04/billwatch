@@ -336,9 +336,12 @@ online da [DECO PROteste](https://www.deco.proteste.pt/familia-consumo/supermerc
 Aldi e o Mercadona não entram no estudo. No exemplo, mudar de cadeia poupava 0,60 € por mês,
 e a app responde isso mesmo: "Quase nada".
 
-Os extratos carregam-se uma vez, em Contas fixas, e ficam na sessão (`ui/extratos.py`): o
-Streamlit esquece o que um widget tinha quando se muda de página, por isso os ficheiros são
-guardados à parte e a página do supermercado usa o extrato já lido.
+Os extratos carregam-se uma vez, em Contas fixas, e a página do supermercado usa o extrato já
+lido. Ao mudar de página, o Streamlit esquece o valor dos controlos que deixam de estar no ecrã.
+As escolhas (o teu nome, o que retiraste do talão, as afinações, as colunas de um formato novo,
+os valores da fatura da luz) usam `persist_state="session"`, que as guarda até se fechar a
+página. Para ficheiros isso não existe, por isso os extratos e a tabela de ofertas da luz ficam
+guardados à parte, na sessão (`ui/extratos.py`).
 
 ### 10. Luz (`energia.py`)
 `custo = termo fixo (€/dia) × dias + preço (€/kWh) × consumo (kWh)`, convertido para

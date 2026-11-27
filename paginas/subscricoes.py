@@ -113,6 +113,8 @@ def _corrigir(recorrentes: pd.DataFrame, possiveis: pd.DataFrame, partilhas: pd.
     manuais: list = estado.setdefault("manuais", [])
     escolhas: dict = estado.setdefault("confirmados", {})
     divisoes: dict = estado.setdefault("divisoes", {})
+    # Os controlos com persist_state="session" guardam a escolha quando se vai a outra página e se volta
+    # (sem isso, o Streamlit apaga o valor de um controlo que não está no ecrã).
     retirar, adicionar, dividir, tuas = st.tabs(["Retirar", "Adicionar", "Dividir", "Contas tuas"])
 
     with retirar:
@@ -121,7 +123,7 @@ def _corrigir(recorrentes: pd.DataFrame, possiveis: pd.DataFrame, partilhas: pd.
         else:
             excluir = st.multiselect("Retirar do talão o que não é um pagamento fixo",
                                      recorrentes["comerciante"].map(sem_sufixo).unique().tolist(),
-                                     placeholder="Escolhe um ou mais", key="excluir")
+                                     placeholder="Escolhe um ou mais", key="excluir", persist_state="session")
             recorrentes = recorrentes[~recorrentes["comerciante"].map(sem_sufixo).isin(excluir)]
 
     with adicionar:
@@ -166,7 +168,7 @@ def _corrigir(recorrentes: pd.DataFrame, possiveis: pd.DataFrame, partilhas: pd.
             st.caption("Pessoas que te pagam parte de uma conta, todos os meses perto do mesmo dia:")
             for i, p in partilhas.iterrows():
                 texto = f"{sem_sufixo(p.conta)}: {p.remetente} paga-te {euro(p.valor_mensal)} por mês"
-                if st.checkbox(texto, value=True, key=f"partilha::{p.remetente}::{p.conta}"):
+                if st.checkbox(texto, value=True, key=f"partilha::{p.remetente}::{p.conta}", persist_state="session"):
                     aceites.append(i)
         contas = [] if recorrentes.empty else recorrentes.loc[
             recorrentes["ativa"] & ~recorrentes["poupanca"] & ~recorrentes["entre_contas"], "comerciante"].tolist()
@@ -183,7 +185,7 @@ def _corrigir(recorrentes: pd.DataFrame, possiveis: pd.DataFrame, partilhas: pd.
                 st.rerun()
 
     with tuas:
-        st.text_input("O teu nome", key="nome_titular", placeholder="Ex.: Tiago Rodrigues",
+        st.text_input("O teu nome", key="nome_titular", persist_state="session", placeholder="Ex.: Tiago Rodrigues",
                       help="Para reconhecer as transferências para outras contas no teu nome. "
                            "Fica só nesta sessão e não é guardado.")
         st.caption("Os carregamentos da Revolut, N26 ou Wise já não contam como custos, e as transferências "
@@ -212,7 +214,8 @@ if ficheiros and not carregados:
     guardados.button("Tirar", on_click=esquecer_ficheiros, type="tertiary", icon=":material/close:")
 discreto("Os ficheiros são lidos em memória e nunca são guardados.")
 linha = st.container(horizontal=True, vertical_alignment="center", gap="medium")
-usar_exemplo = not ficheiros and linha.toggle("Ver com dados de exemplo", value=True)
+usar_exemplo = not ficheiros and linha.toggle("Ver com dados de exemplo", value=True, key="ver_exemplo",
+                                              persist_state="session")
 linha.download_button("Descarregar o extrato de exemplo", csv_exemplo(), "extrato_exemplo.csv", "text/csv",
                       type="tertiary", icon=":material/download:")
 
@@ -315,9 +318,12 @@ else:
                                             "montante": "Valor"})
 
         with st.expander("Afinar a deteção"):
-            st.toggle("Inverter sinais (se as saídas aparecerem como entradas)", key="inverter_todos")
-            st.slider("Mínimo de pagamentos para um serviço desconhecido", 2, 6, 3, key="p_min")
-            st.slider("Regularidade mínima entre pagamentos", 0.5, 1.0, 0.7, 0.05, key="p_reg")
-            st.slider("Variação máxima do valor", 0.05, 0.5, 0.15, 0.05, key="p_var")
+            st.toggle("Inverter sinais (se as saídas aparecerem como entradas)", key="inverter_todos",
+                      persist_state="session")
+            st.slider("Mínimo de pagamentos para um serviço desconhecido", 2, 6, 3, key="p_min",
+                      persist_state="session")
+            st.slider("Regularidade mínima entre pagamentos", 0.5, 1.0, 0.7, 0.05, key="p_reg",
+                      persist_state="session")
+            st.slider("Variação máxima do valor", 0.05, 0.5, 0.15, 0.05, key="p_var", persist_state="session")
 
         mostrar_leitura(extrato, ficheiros)
