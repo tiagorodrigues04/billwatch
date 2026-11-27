@@ -174,3 +174,34 @@ def test_luz_com_uma_tabela_de_ofertas_invalida_nao_rebenta():
     from contas.energia import ler_ofertas
     with pytest.raises(ValueError, match="Faltam colunas"):
         ler_ofertas(b"nome,preco\nA,0.14\n")
+
+
+def test_pdf_danificado_mostra_um_erro_e_nao_rebenta(app):
+    """A estrutura anónima, por baixo do erro, também tem de aguentar um PDF que não abre."""
+    from ui.extratos import FicheiroGuardado
+    dados = b"%PDF-1.4 isto nao e um pdf"
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("extrato.pdf", len(dados), "id-1", dados)]
+    app.run()
+    assert not app.exception
+    assert any("extrato.pdf" in e.value for e in app.error)
+
+
+def test_supermercado_so_com_devolucoes_nao_mostra_um_total_negativo(app):
+    import pandas as pd
+    from ui.extratos import ExtratoPublicado
+    extrato = pd.DataFrame({"data": pd.to_datetime(["2026-03-01", "2026-03-05"]),
+                            "descricao": ["DEVOLUCAO LIDL", "SALARIO"], "valor": [9.99, 900.0]})
+    app.session_state["_extrato_publicado"] = ExtratoPublicado(extrato, exemplo=False, ficheiros=1)
+    app.switch_page("paginas/supermercado.py").run()
+    assert not app.exception
+    assert any(i.value.startswith("Não encontrei compras") for i in app.info)
+
+
+def test_um_so_dia_e_um_so_movimento_no_singular(app):
+    from ui.extratos import FicheiroGuardado
+    dados = "Data;Descrição;Montante\n01/03/2026;NETFLIX;-9,99\n".encode()
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("x.csv", len(dados), "id-1", dados)]
+    app.run()
+    assert not app.exception
+    assert any("cobrem só 1 dia." in i.value for i in app.info)
+    assert "1 movimento de 1 ficheiro" in _talao(app)

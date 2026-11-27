@@ -8,7 +8,7 @@ import streamlit as st
 from contas.partilhas import aplicar_partilhas
 from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, confirmados, euro, juntar_linhas,
                                 linha_fixa, resumo, sem_sufixo)
-from ui.componentes import Linha, barras, cabecalho, discreto, em_euros, passos, talao, talao_a_cinzento
+from ui.componentes import Linha, barras, cabecalho, contagem, discreto, em_euros, passos, talao, talao_a_cinzento
 from ui.dados import analisar, csv_exemplo, juntar, ler_extrato, movimentos
 from ui.extratos import CARREGADOR, esquecer_ficheiros, ficheiros_guardados, guardar_ficheiros, publicar
 from ui.leitura import ler_ficheiros, mostrar_leitura
@@ -259,12 +259,12 @@ else:
         recorrentes = aplicar_partilhas(recorrentes, partilhas, divisoes)
 
         if dias < DIAS_EXTRATO_CURTO:
-            st.info(f"Os extratos cobrem só {dias + 1} dias. Para confirmar que um pagamento se repete são precisos "
+            st.info(f"Os extratos cobrem só {contagem(dias + 1, 'dia')}. Para confirmar que um pagamento se repete são precisos "
                     "2 a 3 meses: junta mais ficheiros para um talão completo.")
 
         periodo = f"{extrato['data'].min():%d/%m/%Y} a {extrato['data'].max():%d/%m/%Y}"
         origem = ("Exemplo com dados fictícios" if usar_exemplo and not ficheiros else
-                  f"{len(extrato)} movimentos de {n_lidos} ficheiro{'s' if n_lidos > 1 else ''}")
+                  f"{contagem(len(extrato), 'movimento')} de {contagem(n_lidos, 'ficheiro')}")
         blocos, rodape_talao = _blocos_do_talao(recorrentes, possiveis, dias < DIAS_EXTRATO_CURTO)
         talao(["BillWatch", "Contas fixas", periodo, origem], blocos, rodape_talao)
 

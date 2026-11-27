@@ -27,6 +27,11 @@ def em_euros(df: pd.DataFrame, colunas: list[str]):
     return df.style.format(euro, subset=[c for c in colunas if c in df], na_rep="")
 
 
+def contagem(n: int, palavra: str, plural: str | None = None) -> str:
+    """3 -> "3 dias"; 1 -> "1 dia". O plural, se não for só acrescentar um "s", vai em `plural`."""
+    return f"{n} {palavra if n == 1 else plural or palavra + 's'}"
+
+
 def cabecalho(titulo: str, introducao: str) -> None:
     st.title(titulo, anchor=False)
     st.html(f'<p class="bw-lead">{html.escape(introducao)}</p>')

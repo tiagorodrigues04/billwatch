@@ -13,7 +13,7 @@ from contas.extrato import (ExtratoNaoBancario, FormatoDesconhecido, LeituraDuvi
                             problemas_de_leitura, sugerir_mapa)
 from contas.recorrentes import euro
 
-from .componentes import em_euros
+from .componentes import contagem, em_euros
 from .dados import diagnostico, ler_extrato
 
 
@@ -71,9 +71,9 @@ def escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci es
             return None
         for problema in problemas_de_leitura(df):
             st.caption(f"⚠️ Atenção: {problema}.")
-        if exigir_confirmacao and not st.checkbox(f"Usar estas colunas ({len(df)} movimentos)", key=f"{k}_ok"):
+        if exigir_confirmacao and not st.checkbox(f"Usar estas colunas ({contagem(len(df), 'movimento')})", key=f"{k}_ok"):
             return None
-        st.success(f"✓ {len(df)} movimentos lidos com estas colunas.")
+        st.success(f"✓ {contagem(len(df), 'movimento')} lido{'' if len(df) == 1 else 's'} com estas colunas.")
         return df
 
 

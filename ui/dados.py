@@ -54,9 +54,9 @@ def movimentos(extrato: pd.DataFrame, nome: str = "") -> pd.DataFrame:
 @st.cache_data(show_spinner=False)
 def diagnostico(conteudo: bytes, nome: str) -> dict:
     """Estrutura anónima de um ficheiro (para reportar problemas sem dados pessoais)."""
-    if nome.lower().endswith(".pdf") or conteudo[:4] == b"%PDF":
-        return diagnostico_pdf(conteudo)
     try:
+        if nome.lower().endswith(".pdf") or conteudo[:4] == b"%PDF":
+            return diagnostico_pdf(conteudo)
         tabela = ler_tabela(conteudo, nome)
         return {"metodo": "tabela", "texto": diagnostico_tabela(tabela), "erro": ""}
     except Exception as erro:  # noqa: BLE001

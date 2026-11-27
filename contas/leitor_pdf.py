@@ -562,8 +562,11 @@ def diagnostico_pdf(conteudo: bytes, max_linhas: int = 45) -> dict:
         info["saidas"] = int((df["valor"] < 0).sum())
     except ValueError as erro:
         info = {"erro": str(erro), "metodo": "-", "cabecalho": "", "linhas_com_data": 0, "movimentos": 0}
-    with _abrir(conteudo) as pdf:
-        texto = "\n".join(p.extract_text(layout=True) or "" for p in pdf.pages[:2])
+    try:
+        with _abrir(conteudo) as pdf:
+            texto = "\n".join(p.extract_text(layout=True) or "" for p in pdf.pages[:2])
+    except Exception:  # noqa: BLE001  PDF danificado ou protegido: o erro já está em info["erro"]
+        texto = ""
     linhas = [l.rstrip() for l in texto.splitlines() if l.strip()]
     info["texto"] = "\n".join(anonimizar(l) for l in linhas[:max_linhas])
     return info
