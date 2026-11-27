@@ -143,3 +143,34 @@ def test_ao_voltar_de_outra_pagina_os_ficheiros_continuam(app):
     assert any("A usar extrato.csv, que carregaste antes." in c.value for c in app.caption)
     next(b for b in app.button if b.label == "Tirar").click().run()
     assert "O talão do exemplo" in [s.value for s in app.subheader]
+
+
+def test_supermercado_com_uma_cadeia_so_com_devolucoes(app):
+    """A compra foi antes do início do extrato e só a devolução aparece: 0 idas, sem dividir por zero."""
+    import pandas as pd
+    from ui.extratos import ExtratoPublicado
+    extrato = pd.DataFrame({"data": pd.to_datetime(["2026-03-01", "2026-03-20", "2026-04-28"]),
+                            "descricao": ["COMPRA CONTINENTE", "DEVOLUCAO LIDL", "COMPRA CONTINENTE"],
+                            "valor": [-50.0, 10.0, -40.0]})
+    app.session_state["_extrato_publicado"] = ExtratoPublicado(extrato, exemplo=False, ficheiros=1)
+    app.switch_page("paginas/supermercado.py").run()
+    assert not app.exception
+    assert "Lidl" in _talao(app) and "só devoluções" in _talao(app)
+
+
+def test_dois_ficheiros_com_o_mesmo_nome_num_formato_desconhecido(app):
+    """O mesmo ficheiro carregado duas vezes: as escolhas de colunas de cada um não podem ter a mesma chave."""
+    from ui.extratos import FicheiroGuardado
+    dados = b"a;b;c\n01/03/2026;NETFLIX;-9,99\n01/04/2026;NETFLIX;-9,99\n01/05/2026;NETFLIX;-9,99\n"
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("x.csv", len(dados), "id-1", dados),
+                                               FicheiroGuardado("x.csv", len(dados), "id-2", dados)]
+    app.run()
+    assert not app.exception
+    assert len(app.selectbox(key="mapa_id-1_data").options) == len(app.selectbox(key="mapa_id-2_data").options)
+
+
+def test_luz_com_uma_tabela_de_ofertas_invalida_nao_rebenta():
+    """Uma tabela sem as colunas certas dá uma mensagem, e a comparação continua com as ofertas de exemplo."""
+    from contas.energia import ler_ofertas
+    with pytest.raises(ValueError, match="Faltam colunas"):
+        ler_ofertas(b"nome,preco\nA,0.14\n")

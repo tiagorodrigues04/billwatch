@@ -18,6 +18,16 @@ def sem_acentos(texto: str) -> str:
     return "".join(c for c in texto if not unicodedata.combining(c))
 
 
+def decodificar(conteudo: bytes) -> str:
+    """Bytes de um ficheiro de texto -> texto: UTF-8 (com ou sem BOM) ou cp1252 (o Excel em português)."""
+    for codificacao in ("utf-8-sig", "cp1252"):
+        try:
+            return conteudo.decode(codificacao)
+        except UnicodeDecodeError:
+            continue
+    return conteudo.decode("latin-1")
+
+
 def chave(texto: str) -> str:
     """Texto em minúsculas e sem acentos, para comparar nomes de colunas."""
     return sem_acentos(texto).lower().strip()

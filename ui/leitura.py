@@ -37,7 +37,7 @@ def escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci es
     """Plano B: o utilizador diz que coluna é qual. Nunca fica preso num formato novo."""
     sugestao = sugerir_mapa(tabela)
     colunas = ["—"] + [str(c) for c in tabela.columns]
-    k = f"mapa_{f.name}_{f.size}"
+    k = f"mapa_{f.file_id}"   # o file_id é único, mesmo com dois ficheiros com o mesmo nome
 
     def escolha(rotulo, chave_mapa, onde):
         atual = sugestao.get(chave_mapa)
@@ -88,7 +88,7 @@ def leitura_duvidosa(f, erro: LeituraDuvidosa) -> pd.DataFrame | None:
                    f"da análise:\n{problemas}")
         st.caption("Isto costuma acontecer com documentos que não são o extrato da conta "
                    "(cripto, investimentos, faturas…) ou com PDFs num formato muito invulgar.")
-        usar = st.checkbox("Usar este ficheiro mesmo assim", key=f"usar_{f.name}_{f.size}")
+        usar = st.checkbox("Usar este ficheiro mesmo assim", key=f"usar_{f.file_id}")
         with st.expander("Ver a estrutura anónima deste ficheiro"):
             estrutura_anonima(f)
     return erro.extrato if usar else None
@@ -136,6 +136,6 @@ def mostrar_leitura(extrato: pd.DataFrame, ficheiros) -> None:
                                     "descricao": "Descrição",
                                     "valor": "Valor"})
         if ficheiros:
-            nomes = [f.name for f in ficheiros]
-            escolhido = st.selectbox("Estrutura anónima do ficheiro", nomes, key="diag_ficheiro") if len(nomes) > 1 else nomes[0]
-            estrutura_anonima(next(f for f in ficheiros if f.name == escolhido))
+            indice = st.selectbox("Estrutura anónima do ficheiro", range(len(ficheiros)), key="diag_ficheiro",
+                                  format_func=lambda i: ficheiros[i].name) if len(ficheiros) > 1 else 0
+            estrutura_anonima(ficheiros[indice])

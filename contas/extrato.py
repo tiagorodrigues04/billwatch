@@ -22,7 +22,7 @@ import re
 import pandas as pd
 
 from .entre_contas import marcar_pares
-from .texto import (anonimizar, chave, converter_datas, converter_numero, corrigir_texto_pdf,
+from .texto import (anonimizar, chave, converter_datas, converter_numero, corrigir_texto_pdf, decodificar,
                     sem_acentos)
 
 __all__ = [
@@ -135,15 +135,6 @@ _LINHAS_SALDO = re.compile(r"saldo\s+(?:inicial|anterior|final|de abertura|trans
 # 1. Ficheiro -> linhas (listas de células)
 # ---------------------------------------------------------------------------
 
-def _decodificar(conteudo: bytes) -> str:
-    for codificacao in ("utf-8-sig", "cp1252"):
-        try:
-            return conteudo.decode(codificacao)
-        except UnicodeDecodeError:
-            continue
-    return conteudo.decode("latin-1")
-
-
 def _pontuacao_separador(texto: str, separador: str) -> int:
     """Quantas linhas têm 3+ células e o número de células mais comum."""
     linhas = [l for l in csv.reader(io.StringIO(texto[:20000]), delimiter=separador) if any(c.strip() for c in l)]
@@ -155,14 +146,14 @@ def _pontuacao_separador(texto: str, separador: str) -> int:
 
 
 def _linhas_csv(conteudo: bytes) -> list[list]:
-    texto = _decodificar(conteudo)
+    texto = decodificar(conteudo)
     separador = max([";", ",", "\t", "|"], key=lambda s: _pontuacao_separador(texto, s))
     return list(csv.reader(io.StringIO(texto), delimiter=separador))
 
 
 def _linhas_html(conteudo: bytes) -> list[list]:
     """Alguns bancos dão um '.xls' que na verdade é uma página HTML com uma tabela."""
-    tabelas = pd.read_html(io.StringIO(_decodificar(conteudo)), thousands=None, decimal=",")
+    tabelas = pd.read_html(io.StringIO(decodificar(conteudo)), thousands=None, decimal=",")
     linhas: list[list] = []
     for tabela in tabelas:
         # O pandas pode ter usado uma linha como cabeçalho; voltamos a pô-la como dados.

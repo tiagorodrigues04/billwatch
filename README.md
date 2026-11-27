@@ -67,6 +67,7 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 streamlit run app.py               # abre em http://localhost:8501
 pytest                             # ~200 testes
+ruff check .                       # verifica o código (também corre no GitHub)
 python -m avaliacao.avaliar        # mede a qualidade da deteção
 ```
 

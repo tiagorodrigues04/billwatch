@@ -335,3 +335,23 @@ def test_revolut_extrato_com_seccoes():
     assert df["valor"].sum() == pytest.approx(-9.99 + 50 - 9.99 - 21)
     assert df["data"].min() == pd.Timestamp("2026-10-05")
     assert "Netflix" in detetar_recorrentes(df)["comerciante"].tolist()
+
+
+def test_ler_ofertas_do_excel_portugues():
+    """CSV do Excel em português: ';' a separar e vírgula decimal; nomes de colunas com acentos ou maiúsculas."""
+    from contas.energia import comparar, ler_ofertas
+    csv_pt = ("Comercializadora;Tarifário;potencia_kva;termo_fixo_eur_dia;preco_kwh\n"
+              "A;Simples;4,6;0,2555;0,1420\nB;Simples;4,6;0,2600;0,1380\nC;Simples;;0,2;0,1\n").encode("cp1252")
+    ofertas = ler_ofertas(csv_pt)
+    assert list(ofertas["comercializadora"]) == ["A", "B"]          # a linha sem potência sai
+    assert ofertas["preco_kwh"].tolist() == [0.142, 0.138]
+    assert len(comparar(200, 4.6, ofertas)) == 2
+
+
+def test_mudar_de_cadeia_nao_da_poupanca_negativa():
+    import pandas as pd
+
+    from contas.supermercados import mudar_de_cadeia
+    por_cadeia = pd.DataFrame({"cadeia": ["Continente", "Pingo Doce"], "gasto_mensal": [100.0, -5.0]})
+    indices = pd.DataFrame({"cadeia": ["Continente", "Pingo Doce"], "indice": [100, 110]})
+    assert mudar_de_cadeia(por_cadeia, indices)["poupanca_mensal"].min() >= 0

@@ -163,5 +163,6 @@ def mudar_de_cadeia(por_cadeia: pd.DataFrame, indices: pd.DataFrame) -> pd.DataF
     """
     referencia = float(indices["indice"].min())
     tabela = por_cadeia[["cadeia", "gasto_mensal"]].merge(indices[["cadeia", "indice"]], on="cadeia", how="left")
-    tabela["poupanca_mensal"] = tabela["gasto_mensal"] * (1 - referencia / tabela["indice"])
+    # Uma cadeia só com devoluções tem gasto negativo: não há nada a poupar lá.
+    tabela["poupanca_mensal"] = (tabela["gasto_mensal"] * (1 - referencia / tabela["indice"])).clip(lower=0)
     return tabela

@@ -55,7 +55,7 @@ def test_formato_datas_valores_e_comerciantes_exatos(nome, geradores):
 @pytest.mark.parametrize("nome", sorted(ESPERADO))
 def test_formato_mesmo_resultado_final(nome):
     rec = detetar_recorrentes(carregar_extrato((PASTA / nome).read_bytes(), nome))
-    assert FIXOS <= set(rec["comerciante"])
+    assert set(rec["comerciante"]) >= FIXOS
     r = resumo(rec)
     assert r["n_ativas"] == 8 and r["mensal"] == pytest.approx(442.06)
 

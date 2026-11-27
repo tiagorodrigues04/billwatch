@@ -19,6 +19,7 @@ from pathlib import Path
 import pandas as pd
 
 from .extrato import converter_numero
+from .texto import chave, decodificar
 
 PASTA_DADOS = Path(__file__).resolve().parent.parent / "dados"
 POTENCIAS_PADRAO = [1.15, 2.3, 3.45, 4.6, 5.75, 6.9, 10.35, 13.8, 17.25, 20.7]
@@ -96,9 +97,37 @@ def ler_fatura_pdf(conteudo: bytes) -> tuple[DadosFatura, str]:
 # Comparação de ofertas
 # ---------------------------------------------------------------------------
 
+COLUNAS_OFERTAS = ["comercializadora", "tarifario", "potencia_kva", "termo_fixo_eur_dia", "preco_kwh"]
+_NUMERICAS_OFERTAS = ["potencia_kva", "termo_fixo_eur_dia", "preco_kwh"]
+
+
 def carregar_ofertas(caminho: Path | None = None) -> pd.DataFrame:
     caminho = caminho or PASTA_DADOS / "ofertas_luz.csv"
     return pd.read_csv(caminho)
+
+
+def ler_ofertas(conteudo: bytes) -> pd.DataFrame:
+    """Lê uma tabela de ofertas escrita pela pessoa (CSV com ',' ou com ';' e vírgula decimal, do Excel).
+
+    Lança ValueError com uma mensagem para mostrar se faltarem colunas ou não houver ofertas válidas.
+    """
+    texto = decodificar(conteudo)
+    primeira = texto.lstrip().split("\n", 1)[0]
+    separador = max([",", ";", "\t"], key=primeira.count)
+    try:
+        ofertas = pd.read_csv(io.StringIO(texto), sep=separador, dtype=str, skipinitialspace=True)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as erro:
+        raise ValueError("Não consegui ler esta tabela. Confirma que é um CSV.") from erro
+    ofertas.columns = [chave(str(c)).replace(" ", "_") for c in ofertas.columns]
+    em_falta = [c for c in COLUNAS_OFERTAS if c not in ofertas.columns]
+    if em_falta:
+        raise ValueError(f"Faltam colunas na tabela de ofertas: {', '.join(em_falta)}.")
+    for coluna in _NUMERICAS_OFERTAS:
+        ofertas[coluna] = ofertas[coluna].map(converter_numero).astype(float)
+    ofertas = ofertas.dropna(subset=_NUMERICAS_OFERTAS).reset_index(drop=True)
+    if ofertas.empty:
+        raise ValueError("A tabela de ofertas não tem nenhuma linha com potência, termo fixo e preço válidos.")
+    return ofertas
 
 
 def custo_periodo(consumo_kwh: float, dias: int, termo_fixo_dia: float, preco_kwh: float) -> float:

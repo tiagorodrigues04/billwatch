@@ -379,7 +379,7 @@ def c09_cripto():  # exportação CSV de cripto (estilo Revolut)
 
 def p09_ilegivel():  # o sintoma que apareceu num PDF real: linhas com data e só números, sem descrição
     linhas = []
-    for i, (moeda, preco, valor) in enumerate(_CRIPTO * 4):
+    for i, (_moeda, preco, valor) in enumerate(_CRIPTO * 4):
         dia = f"{13 + i // 6:02d}/03/2025"
         linhas.append([(dia, 30, "l"), (f"{pt(preco)} €", 340, "r"), (f"{pt(valor)} €", 420, "r")])
     return _pdf_texto([(["Documento (fictício)"], linhas)], [("Data", 30, "l"), ("Valor", 340, "r"), ("Crédito", 420, "r")])
