@@ -135,4 +135,4 @@ else:
 
     with st.expander("Afinar"):
         st.slider("Uma ida conta como pequena abaixo de", 5, 25, int(LIMITE_IDA_PEQUENA), step=1, format="%d €",
-                  key="limite_ida_pequena")
+                  key="limite_ida_pequena", persist_state="session")

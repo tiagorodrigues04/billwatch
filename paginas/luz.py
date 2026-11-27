@@ -9,6 +9,23 @@ from contas.recorrentes import euro
 from ui import telemetria
 from ui.componentes import Linha, cabecalho, contagem, discreto, em_euros, talao
 from ui.dados import ofertas_base
+from ui.extratos import FicheiroGuardado
+
+# O carregador de ficheiros esquece a tabela de ofertas quando se muda de página (o persist_state não serve
+# para ficheiros), por isso ela fica guardada na sessão, como os extratos.
+_OFERTAS_GUARDADAS = "_ofertas_guardadas"
+
+
+def _guardar_ofertas() -> None:
+    """Chamado só quando o carregador muda: ao voltar de outra página aparece vazio, e a tabela guardada vale."""
+    f = st.session_state.get("ofertas_csv")
+    st.session_state[_OFERTAS_GUARDADAS] = None if f is None else FicheiroGuardado(f.name, f.size, f.file_id,
+                                                                                   f.getvalue())
+
+
+def _esquecer_ofertas() -> None:
+    st.session_state[_OFERTAS_GUARDADAS] = None
+
 
 cabecalho("A tua luz está cara?",
           "Carrega a fatura da luz em PDF ou escreve os valores à mão. O BillWatch calcula quanto pagarias "
@@ -56,18 +73,25 @@ if pdf is not None and "pdf_msg" in st.session_state:
 
 st.subheader("Os valores da tua fatura", anchor=False)
 c1, c2 = st.columns(2)
+# persist_state="session": os valores ficam quando se vai a outra página e se volta (o Streamlit apagava-os).
 consumo = c1.number_input("Consumo no período (kWh)", 0.0, LIMITES["consumo"], key="consumo", placeholder="ex.: 185",
-                          step=1.0)
-dias = c2.number_input("Dias do período", 1, LIMITES["dias"], key="dias")
-potencia = c1.selectbox("Potência contratada (kVA)", POTENCIAS_PADRAO, key="potencia")
+                          step=1.0, persist_state="session")
+dias = c2.number_input("Dias do período", 1, LIMITES["dias"], key="dias", persist_state="session")
+potencia = c1.selectbox("Potência contratada (kVA)", POTENCIAS_PADRAO, key="potencia", persist_state="session")
 preco_kwh = c2.number_input("Preço da energia (€/kWh)", 0.0, LIMITES["preco_kwh"], key="preco_kwh", placeholder="ex.: 0,1580",
-                            step=0.001, format="%.4f")
+                            step=0.001, format="%.4f", persist_state="session")
 termo_fixo = c1.number_input("Termo fixo (€/dia)", 0.0, LIMITES["termo_fixo"], key="termo_fixo", placeholder="ex.: 0,2650",
-                             step=0.001, format="%.4f")
+                             step=0.001, format="%.4f", persist_state="session")
 
 with st.expander("Usar a minha tabela de ofertas"):
     discreto("CSV com as colunas comercializadora, tarifario, potencia_kva, termo_fixo_eur_dia e preco_kwh.")
-    proprio = st.file_uploader("Tabela de ofertas", type=["csv"], key="ofertas_csv")
+    carregada = st.file_uploader("Tabela de ofertas", type=["csv"], key="ofertas_csv", on_change=_guardar_ofertas)
+    proprio = carregada or st.session_state.get(_OFERTAS_GUARDADAS)
+    if proprio is not None and carregada is None:
+        # Voltou de outra página: o carregador aparece vazio, mas a tabela continua na sessão.
+        guardada = st.container(horizontal=True, vertical_alignment="center", gap="small")
+        guardada.caption(f"A usar {proprio.name}, que carregaste antes.")
+        guardada.button("Tirar", on_click=_esquecer_ofertas, type="tertiary", icon=":material/close:")
 ofertas = ofertas_base()
 if proprio is not None:
     try:

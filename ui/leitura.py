@@ -39,11 +39,13 @@ def escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci es
     sugestao = sugerir_mapa(tabela)
     colunas = ["—"] + [str(c) for c in tabela.columns]
     k = f"mapa_{f.file_id}"   # o file_id é único, mesmo com dois ficheiros com o mesmo nome
+    # As escolhas ficam na sessão, como os ficheiros (persist_state="session"): quem vai a outra página
+    # e volta não as tem de repetir.
 
     def escolha(rotulo, chave_mapa, onde):
         atual = sugestao.get(chave_mapa)
         indice = colunas.index(atual) if atual in colunas else 0
-        valor = onde.selectbox(rotulo, colunas, index=indice, key=f"{k}_{chave_mapa}")
+        valor = onde.selectbox(rotulo, colunas, index=indice, key=f"{k}_{chave_mapa}", persist_state="session")
         return None if valor == "—" else valor
 
     with st.container(border=True):
@@ -53,13 +55,14 @@ def escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci es
         mapa = {"data": escolha("Data", "data", c1), "descricao": escolha("Descrição", "descricao", c2)}
         duas = st.radio("Como aparece o valor?", ["Numa coluna (com - nas saídas)", "Em duas colunas: débito e crédito"],
                         index=1 if (sugestao.get("debito") or sugestao.get("credito")) and not sugestao.get("valor") else 0,
-                        key=f"{k}_modo", horizontal=True).startswith("Em duas")
+                        key=f"{k}_modo", persist_state="session", horizontal=True).startswith("Em duas")
         c3, c4 = st.columns(2)
         if duas:
             mapa.update(debito=escolha("Débito (saídas)", "debito", c3), credito=escolha("Crédito (entradas)", "credito", c4))
         else:
             mapa.update(valor=escolha("Valor", "valor", c3), sinal=escolha("Coluna D/C (opcional)", "sinal", c4))
-        inverter = st.checkbox("As saídas aparecem sem sinal - (inverter sinais)", key=f"{k}_inverter")
+        inverter = st.checkbox("As saídas aparecem sem sinal - (inverter sinais)", key=f"{k}_inverter",
+                               persist_state="session")
         if not (mapa["data"] and mapa["descricao"] and (mapa.get("valor") or mapa.get("debito") or mapa.get("credito"))):
             st.caption("Escolhe pelo menos a data, a descrição e o valor.")
             return None
@@ -72,7 +75,8 @@ def escolher_colunas(f, tabela: pd.DataFrame, mensagem: str = "não reconheci es
             return None
         for problema in problemas_de_leitura(df):
             st.caption(f"⚠️ Atenção: {problema}.")
-        if exigir_confirmacao and not st.checkbox(f"Usar estas colunas ({contagem(len(df), 'movimento')})", key=f"{k}_ok"):
+        if exigir_confirmacao and not st.checkbox(f"Usar estas colunas ({contagem(len(df), 'movimento')})",
+                                                  key=f"{k}_ok", persist_state="session"):
             return None
         st.success(f"✓ {contagem(len(df), 'movimento')} lido{'' if len(df) == 1 else 's'} com estas colunas.")
         return df
@@ -89,7 +93,7 @@ def leitura_duvidosa(f, erro: LeituraDuvidosa) -> pd.DataFrame | None:
                    f"da análise:\n{problemas}")
         st.caption("Isto costuma acontecer com documentos que não são o extrato da conta "
                    "(cripto, investimentos, faturas…) ou com PDFs num formato muito invulgar.")
-        usar = st.checkbox("Usar este ficheiro mesmo assim", key=f"usar_{f.file_id}")
+        usar = st.checkbox("Usar este ficheiro mesmo assim", key=f"usar_{f.file_id}", persist_state="session")
         with st.expander("Ver a estrutura anónima deste ficheiro"):
             estrutura_anonima(f)
     return erro.extrato if usar else None

@@ -205,3 +205,108 @@ def test_um_so_dia_e_um_so_movimento_no_singular(app):
     assert not app.exception
     assert any("cobrem só 1 dia." in i.value for i in app.info)
     assert "1 movimento de 1 ficheiro" in _talao(app)
+
+
+# --- as escolhas ficam quando se vai a outra página e se volta -----------------------
+
+def _ir_e_voltar(at, pagina: str, outra: str = "paginas/sobre.py"):
+    at.switch_page(outra).run()
+    return at.switch_page(pagina).run()
+
+
+def test_as_escolhas_em_contas_fixas_ficam_ao_ir_a_outra_pagina(app_tres_casos):
+    at = app_tres_casos
+    at.text_input(key="nome_titular").set_value("Tiago Rodrigues")
+    at.checkbox(key="partilha::Joao Silva::MEO").uncheck()
+    at.multiselect(key="excluir").select("Netflix")
+    at.slider(key="p_min").set_value(5)
+    at.slider(key="p_reg").set_value(0.9)
+    at.slider(key="p_var").set_value(0.3)
+    antes = _talao(at.run())
+    assert "Total por mês 30,00 €" in antes                    # só a MEO (40 €), menos a parte da Ana (10 €)
+    _ir_e_voltar(at, "paginas/subscricoes.py", "paginas/supermercado.py")
+    assert not at.exception
+    assert _talao(at) == antes
+    assert (at.slider(key="p_min").value, at.slider(key="p_reg").value, at.slider(key="p_var").value) == (5, 0.9, 0.3)
+
+
+def test_inverter_os_sinais_fica_ao_ir_a_outra_pagina(app):
+    antes = _talao(app.toggle(key="inverter_todos").set_value(True).run())
+    _ir_e_voltar(app, "paginas/subscricoes.py")
+    assert not app.exception
+    assert app.toggle(key="inverter_todos").value is True
+    assert _talao(app) == antes
+
+
+def test_desligar_o_exemplo_fica_ao_ir_a_outra_pagina(app):
+    next(t for t in app.toggle if t.label == "Ver com dados de exemplo").set_value(False).run()
+    assert "O talão do exemplo" not in [s.value for s in app.subheader]
+    _ir_e_voltar(app, "paginas/subscricoes.py")
+    assert not app.exception
+    assert "O talão do exemplo" not in [s.value for s in app.subheader]
+
+
+def test_o_limite_das_idas_pequenas_fica_ao_ir_a_outra_pagina(app):
+    app.switch_page("paginas/supermercado.py").run()
+    app.slider(key="limite_ida_pequena").set_value(20).run()
+    assert "Idas pequenas, abaixo de 20 €" in _talao(app)
+    _ir_e_voltar(app, "paginas/supermercado.py")
+    assert not app.exception
+    assert "Idas pequenas, abaixo de 20 €" in _talao(app)
+
+
+def test_os_valores_da_fatura_da_luz_ficam_ao_ir_a_outra_pagina(app):
+    app.switch_page("paginas/luz.py").run()
+    app.number_input(key="consumo").set_value(185.0)
+    app.number_input(key="dias").set_value(31)
+    app.selectbox(key="potencia").set_value(6.9)
+    app.number_input(key="preco_kwh").set_value(0.158)
+    app.number_input(key="termo_fixo").set_value(0.265)
+    antes = _talao(app.run())
+    assert "185 kWh em 31 dias, 6,9 kVA" in antes and "A tua fatura" in antes
+    _ir_e_voltar(app, "paginas/luz.py")
+    assert not app.exception
+    assert _talao(app) == antes
+
+
+def test_as_colunas_escolhidas_para_um_formato_desconhecido_ficam_ao_ir_a_outra_pagina(app):
+    """Um ficheiro num formato que o BillWatch não conhece: a pessoa diz que coluna é qual, e não tem de repetir."""
+    from ui.extratos import FicheiroGuardado
+    dados = b"a;b;c\n" + b"".join(b"01/%02d/2026;NETFLIX;9,99\n" % mes for mes in range(3, 8))
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("x.csv", len(dados), "id-1", dados)]
+    app.run()
+    app.selectbox(key="mapa_id-1_valor").set_value("c")
+    app.checkbox(key="mapa_id-1_inverter").check()           # as saídas vêm sem o sinal -
+    antes = _talao(app.run())
+    assert "Netflix" in antes
+    _ir_e_voltar(app, "paginas/subscricoes.py")
+    assert not app.exception
+    assert _talao(app) == antes
+
+
+def test_usar_uma_leitura_duvidosa_fica_confirmado_ao_ir_a_outra_pagina(app):
+    """A leitura parece estranha (quase sem descrições) e a pessoa confirma que quer usar o ficheiro."""
+    from ui.extratos import FicheiroGuardado
+    dados = "Data;Descrição;Montante\n01/03/2026;;-9,99\n01/04/2026;;-9,99\n01/05/2026;NETFLIX;-9,99\n".encode()
+    app.session_state["_extratos_guardados"] = [FicheiroGuardado("x.csv", len(dados), "id-1", dados)]
+    app.run()
+    app.checkbox(key="mapa_id-1_ok").check().run()
+    assert "O teu talão" in [s.value for s in app.subheader]
+    _ir_e_voltar(app, "paginas/subscricoes.py")
+    assert not app.exception
+    assert "O teu talão" in [s.value for s in app.subheader]
+
+
+def test_a_tabela_de_ofertas_carregada_fica_ao_ir_a_outra_pagina(app):
+    """Como os extratos: o carregador esvazia-se ao mudar de página, mas a tabela guardada continua a contar."""
+    from ui.extratos import FicheiroGuardado
+    dados = (b"comercializadora,tarifario,potencia_kva,termo_fixo_eur_dia,preco_kwh\n"
+             b"Luz do Bairro,Simples,4.6,0.25,0.14\n")
+    app.session_state["_ofertas_guardadas"] = FicheiroGuardado("ofertas.csv", len(dados), "id-1", dados)
+    app.switch_page("paginas/luz.py").run()
+    app.number_input(key="consumo").set_value(185.0).run()
+    assert not app.exception
+    assert "Ofertas da tua tabela" in _talao(app) and "Luz do Bairro" in _talao(app)
+    assert any("A usar ofertas.csv, que carregaste antes." in c.value for c in app.caption)
+    next(b for b in app.button if b.label == "Tirar").click().run()
+    assert "Ofertas de exemplo, não são preços reais" in _talao(app)
