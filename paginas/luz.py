@@ -6,6 +6,7 @@ import streamlit as st
 
 from contas.energia import POTENCIAS_PADRAO, DadosFatura, comparar, custo_periodo, ler_fatura_pdf, ler_ofertas
 from contas.recorrentes import euro
+from ui import telemetria
 from ui.componentes import Linha, cabecalho, contagem, discreto, em_euros, talao
 from ui.dados import ofertas_base
 
@@ -30,7 +31,8 @@ pdf = st.file_uploader("Fatura da luz", type=["pdf"], help="O PDF que a comercia
 if pdf is not None and st.session_state.get("pdf_lido") != pdf.file_id:
     try:
         dados, texto = ler_fatura_pdf(pdf.getvalue())
-    except Exception:  # noqa: BLE001  PDF protegido, digitalizado ou danificado
+    except Exception as erro:  # noqa: BLE001  PDF protegido, digitalizado ou danificado
+        telemetria.registar_erro(erro, "ler_fatura")
         dados, texto = DadosFatura(), ""
     st.session_state["pdf_lido"] = pdf.file_id
     st.session_state["texto_pdf"] = texto

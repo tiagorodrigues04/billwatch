@@ -8,6 +8,7 @@ import streamlit as st
 from contas.partilhas import aplicar_partilhas
 from contas.recorrentes import (DIAS_EXTRATO_CURTO, NOTA_EXPERIMENTAL, PERIODO, confirmados, euro, juntar_linhas,
                                 linha_fixa, resumo, sem_sufixo)
+from ui import telemetria
 from ui.componentes import Linha, barras, cabecalho, contagem, discreto, em_euros, passos, talao, talao_a_cinzento
 from ui.dados import analisar, csv_exemplo, juntar, ler_extrato, movimentos
 from ui.extratos import CARREGADOR, esquecer_ficheiros, ficheiros_guardados, guardar_ficheiros, publicar
@@ -223,11 +224,15 @@ if ficheiros:
     # Ficheiros novos levam tempo a ler (um PDF pode demorar segundos): mostra já a forma do talão.
     # Nos cliques seguintes está tudo em cache, por isso não se mostra (seria só um piscar).
     assinatura = tuple((f.file_id, f.size) for f in ficheiros)
-    if st.session_state.get("_ficheiros_lidos") != assinatura:
+    novos = st.session_state.get("_ficheiros_lidos") != assinatura
+    if novos:
         talao_a_cinzento(zona, f"A ler {len(ficheiros)} ficheiro{'s' if len(ficheiros) > 1 else ''}…")
     with avisos:
         lidos = ler_ficheiros(ficheiros)
     st.session_state["_ficheiros_lidos"] = assinatura
+    if novos:   # estatística anónima: quantos ficheiros e de que formato (nada do que está lá dentro)
+        telemetria.registar("extratos_lidos", ficheiros=len(ficheiros), lidos=len(lidos),
+                            formatos=sorted({telemetria.formato(f.name) for f in ficheiros}))
     extrato = juntar(lidos) if lidos else None
     n_lidos = len(lidos)
 elif usar_exemplo:

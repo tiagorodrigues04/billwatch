@@ -75,6 +75,26 @@ A app arranca com um **extrato de exemplo** (12 meses fictícios de um estudante
 isso dá para experimentar logo sem dados reais. Os testes correm sozinhos no GitHub a
 cada alteração (separador *Actions*).
 
+## Relatórios de erros (PostHog)
+
+A app online envia ao [PostHog](https://posthog.com) (nuvem da UE) um relatório **anónimo**
+de cada erro inesperado e umas estatísticas simples: que páginas se abrem, quantos ficheiros
+se carregam e de que formato, e porque é que um ficheiro não foi lido. Serve para saber quando
+a app falha a alguém. Nunca vão descrições, valores, nomes, datas nem os ficheiros: as mensagens
+de erro passam pelo mesmo `anonimizar()` da estrutura anónima (letras viram `x`, números `9`),
+as variáveis do código não são enviadas, não há cookies nem perfis e a localização não é guardada.
+Quem usa a app pode desligar o envio em *Como funciona*. Está tudo em `ui/telemetria.py`.
+
+Para ligar, põe a chave do projeto nos *Secrets* do Streamlit Cloud (ou em
+`.streamlit/secrets.toml`, que fica fora do git; ver `.streamlit/secrets.toml.example`):
+
+```toml
+POSTHOG_PROJECT_TOKEN = "phc_..."
+POSTHOG_HOST = "https://eu.i.posthog.com"
+```
+
+Sem a chave, a app funciona igual e não envia nada. A versão no browser também não envia nada.
+
 ## Versão no browser
 
 A mesma app corre sem servidor em
@@ -94,7 +114,8 @@ python ferramentas/construir_pagina.py _site    # _site/index.html também abre 
 
 Diferenças em relação à app online: o pdfplumber é instalado sem o pypdfium2 (só serve para
 desenhar páginas como imagem e não existe para o browser), e os textos sobre privacidade
-dizem que os ficheiros não saem do computador.
+dizem que os ficheiros não saem do computador. Também não envia relatórios de erros: o
+PostHog não é instalado no browser.
 
 ## Formatos de extrato suportados
 
@@ -143,6 +164,7 @@ ui/
   leitura.py            Ler os ficheiros carregados, com plano B se o formato for desconhecido
   dados.py              Leituras e análise com cache (os cliques não repetem as contas)
   extratos.py           Os extratos carregados, partilhados entre as páginas
+  telemetria.py         Relatórios de erros e estatísticas anónimas para o PostHog (opcional)
 contas/                 A lógica, sem Streamlit (testável à parte)
   texto.py              Ler números e datas escritos de qualquer forma; anonimizar
   extrato.py            CSV/Excel/HTML → tabela → (data, descricao, valor); nome do comerciante

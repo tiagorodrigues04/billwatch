@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ui import telemetria
 from ui.componentes import cabecalho
 
 cabecalho("Como funciona",
@@ -65,3 +66,13 @@ st.subheader("Privacidade", anchor=False)
 st.markdown(
     "Os ficheiros são lidos em memória, só para fazer as contas, e nunca são guardados. "
     "As fontes da app também são servidas pela própria app, sem pedidos a terceiros.")
+
+if telemetria.disponivel():   # só na app com servidor; a versão do browser não envia nada
+    st.markdown(
+        "Para sabermos quando a app falha, ela envia ao PostHog (na UE) um relatório **anónimo** de cada erro "
+        "inesperado e umas estatísticas simples: que páginas se abrem, quantos ficheiros se carregam e de que "
+        "formato, e porque é que um ficheiro não foi lido. Nunca vão descrições, valores, nomes, datas nem os "
+        "ficheiros: nas mensagens de erro, as letras viram `x` e os números viram `9`. Não há cookies nem "
+        "perfis, só um código ao acaso que dura enquanto a página estiver aberta.")
+    st.toggle("Enviar relatórios de erros e estatísticas anónimas", value=telemetria.ativa(), key="telemetria",
+              on_change=lambda: telemetria.desligar(not st.session_state["telemetria"]))

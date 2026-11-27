@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ui import telemetria
 from ui.componentes import rodape
 from ui.estilo import aplicar_estilo
 
@@ -29,5 +30,10 @@ pagina = st.navigation(
     ],
     position="top",
 )
-pagina.run()
+telemetria.pagina_aberta(pagina.title)
+try:
+    pagina.run()
+except Exception as erro:   # um erro inesperado: avisa o PostHog (anonimizado) e o Streamlit mostra-o como antes
+    telemetria.registar_erro(erro, "pagina", pagina=pagina.title)
+    raise
 rodape()
